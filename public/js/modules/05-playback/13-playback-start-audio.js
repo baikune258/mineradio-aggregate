@@ -948,6 +948,16 @@ async function playLocalQueueSong(song, idx, token, firstVisualPlay, opts, resum
     forcePlaybackControlsInteractive();
     return false;
   }
+  if (
+    song.memberOnly
+    && typeof window.isMineradioMemberActive === 'function'
+    && !window.isMineradioMemberActive()
+  ) {
+    showToast('会员专属歌曲，请先激活会员');
+    if (typeof window.openMineradioMemberPanel === 'function') window.openMineradioMemberPanel();
+    forcePlaybackControlsInteractive();
+    return false;
+  }
   currentLocalSong = song;
   playQueue[idx] = song;
   updateCustomCoverButton();

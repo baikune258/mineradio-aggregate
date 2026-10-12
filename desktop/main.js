@@ -15,6 +15,7 @@ const {
   registerLocalMusicScheme,
 } = require('./local-music-library');
 const { BuiltInPlaylistLibrary } = require('./built-in-playlist-library');
+const { MemberSystem } = require('./member-system');
 const { WallpaperEngineRuntime } = require('./wallpaper-engine-runtime');
 const { FullDesktopModeRuntime } = require('./full-desktop-mode-runtime');
 const {
@@ -161,6 +162,7 @@ fs.mkdirSync(NATIVE_HELPER_TEMP_PATH, { recursive: true });
 process.env.MINERADIO_NATIVE_TEMP_DIR = NATIVE_HELPER_TEMP_PATH;
 systemMemory.setNativeTempPath(NATIVE_HELPER_TEMP_PATH);
 const localMusicLibrary = new LocalMusicLibrary({ userDataPath: STABLE_USER_DATA_PATH });
+const memberSystem = new MemberSystem({ userDataPath: STABLE_USER_DATA_PATH });
 const builtInPlaylistLibrary = new BuiltInPlaylistLibrary({ userDataPath: STABLE_USER_DATA_PATH });
 const localMusicImportCapabilities = new Map();
 const wallpaperEngineLibrary = new WallpaperEngineLibrary({ userDataPath: STABLE_USER_DATA_PATH });
@@ -4566,6 +4568,54 @@ ipcMain.handle('mineradio-local-library-list', async (event) => {
     return await localMusicLibrary.listTracks();
   } catch (error) {
     return { ok: false, count: 0, tracks: [], error: error.message || 'LOCAL_LIBRARY_READ_FAILED' };
+  }
+});
+
+// ---------- 会员体系 ----------
+ipcMain.handle('mineradio-member-status', async (event) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, activated: false, expireAt: 0, error: 'UNTRUSTED_SENDER' };
+  return Object.assign({ ok: true }, memberSystem.status());
+});
+
+ipcMain.handle('mineradio-member-activate', async (event, code) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+  try {
+    return memberSystem.activate(code);
+  } catch (error) {
+    return { ok: false, error: error.message || 'MEMBER_ACTIVATE_FAILED' };
+  }
+});
+
+ipcMain.handle('mineradio-member-admin-generate', async (event, payload = {}) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, codes: [], error: 'UNTRUSTED_SENDER' };
+  try {
+    return memberSystem.generateCodes(payload.password, payload.count, payload.days);
+  } catch (error) {
+    return { ok: false, codes: [], error: error.message || 'MEMBER_GENERATE_FAILED' };
+  }
+});
+
+ipcMain.handle('mineradio-member-admin-set-password', async (event, payload = {}) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+  try {
+    return memberSystem.setAdminPassword(payload.oldPassword, payload.newPassword);
+  } catch (error) {
+    return { ok: false, error: error.message || 'MEMBER_PASSWORD_FAILED' };
+  }
+});
+
+ipcMain.handle('mineradio-member-admin-records', async (event, password) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, codes: [], error: 'UNTRUSTED_SENDER' };
+  if (!memberSystem.adminCheck(password)) return { ok: false, codes: [], error: '管理口令不正确' };
+  return { ok: true, codes: memberSystem.codeRecords() };
+});
+
+ipcMain.handle('mineradio-local-library-set-member-only', async (event, payload = {}) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+  try {
+    return await localMusicLibrary.setMemberOnly(payload.localFileId, payload.memberOnly);
+  } catch (error) {
+    return { ok: false, error: error.message || 'LOCAL_MEMBER_FLAG_FAILED' };
   }
 });
 

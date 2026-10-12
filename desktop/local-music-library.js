@@ -336,6 +336,7 @@ class LocalMusicLibrary {
           coverMime: cleanText(source.coverMime, '', 100),
           lyric: cleanText(source.lyric, '', MAX_LYRIC_BYTES),
           lyricSource: source.lyricSource === 'sidecar' ? 'sidecar' : (source.lyricSource === 'embedded' ? 'embedded' : ''),
+          memberOnly: source.memberOnly === true || source.memberOnly === 1 ? 1 : 0,
           importedAt: Math.max(0, Number(source.importedAt) || 0),
         };
         nextRecords.set(id, record);
@@ -366,6 +367,7 @@ class LocalMusicLibrary {
       cover: coverAvailable ? localMediaUrl('cover', record.id, record.revision, this.mediaToken) : '',
       hasLyric: !!record.lyric,
       lyricSource: record.lyricSource || '',
+      memberOnly: record.memberOnly === 1,
     };
   }
 
@@ -376,6 +378,15 @@ class LocalMusicLibrary {
       if (record) tracks.push(this.serializeRecord(record));
     }
     return { ok: true, version: LOCAL_LIBRARY_VERSION, count: tracks.length, tracks };
+  }
+
+  async setMemberOnly(localFileId, memberOnly) {
+    const id = String(localFileId || '').toLowerCase();
+    const record = this.records.get(id);
+    if (!record) return { ok: false, error: 'LOCAL_TRACK_NOT_FOUND' };
+    record.memberOnly = memberOnly === true || memberOnly === 1 ? 1 : 0;
+    await this.persistSnapshot(this.order, this.records);
+    return { ok: true, memberOnly: record.memberOnly === 1 };
   }
 
   async listTracks() {
