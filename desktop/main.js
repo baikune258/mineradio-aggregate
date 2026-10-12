@@ -145,7 +145,43 @@ const STARTUP_QA_USER_DATA_PATH = (() => {
   if (process.env.MINERADIO_STARTUP_QA_HIDDEN !== '1' || !value || !path.isAbsolute(value)) return '';
   return path.resolve(value);
 })();
-const STABLE_USER_DATA_PATH = STARTUP_QA_USER_DATA_PATH || path.join(app.getPath('appData'), APP_NAME);
+
+// 二改：数据目录跟随安装目录（不占系统盘）。
+// 安装到 D 盘后，曲库 / 会员 / 歌单 / 配置全部落在安装目录下的 data 文件夹。
+const LEGACY_USER_DATA_PATH = path.join(app.getPath('appData'), APP_NAME);
+const INSTALL_DATA_DIR = (() => {
+  const exeDir = app.isPackaged ? path.dirname(process.execPath) : path.join(__dirname, '..');
+  return path.join(exeDir, 'data');
+})();
+const STABLE_USER_DATA_PATH = STARTUP_QA_USER_DATA_PATH || INSTALL_DATA_DIR;
+
+// 启动时把旧版遗留的系统盘数据迁移到安装目录 data，并清理系统盘残留。
+// 迁移会跳过历史缓存目录（缓存本就指向 D:\MineradioCache，无需复制）。
+function migrateLegacyUserData(legacyPath, targetPath) {
+  if (!legacyPath || !targetPath || legacyPath === targetPath) return;
+  try {
+    if (!fs.existsSync(legacyPath)) return;
+    const skipDirs = new Set(['cache', 'cache-fallback', 'Cache', 'GPUCache']);
+    fs.mkdirSync(targetPath, { recursive: true });
+    const existing = fs.readdirSync(targetPath).filter(name => !skipDirs.has(name));
+    if (existing.length > 0) return;
+    let copied = 0;
+    for (const name of fs.readdirSync(legacyPath)) {
+      if (skipDirs.has(name)) continue;
+      const src = path.join(legacyPath, name);
+      const dest = path.join(targetPath, name);
+      fs.cpSync(src, dest, { recursive: true, force: true });
+      copied++;
+    }
+    console.log('[UserData] 已迁移旧数据到安装目录 data（', copied, '项），正在清理系统盘残留');
+    fs.rmSync(legacyPath, { recursive: true, force: true });
+    console.log('[UserData] 系统盘旧数据已清理');
+  } catch (error) {
+    console.warn('[UserData] 旧数据迁移失败，保持现状继续启动:', error.message);
+  }
+}
+migrateLegacyUserData(LEGACY_USER_DATA_PATH, STABLE_USER_DATA_PATH);
+
 fs.mkdirSync(STABLE_USER_DATA_PATH, { recursive: true });
 app.setPath('userData', STABLE_USER_DATA_PATH);
 const INITIAL_CACHE_SETTINGS = ensureCacheDirectories(readCacheSettings());
