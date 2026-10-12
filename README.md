@@ -6,25 +6,28 @@
 >
 > 本仓库保留公开源码、历史版本和下载说明，方便个人玩家 Fork、建立分支或制作二创版本。
 
+> **本仓库为二创聚合版（fork）**
+>
+> 基于原作者 [XxHuberrr/Mineradio](https://github.com/XxHuberrr/Mineradio) 2.2.0 二次开发，遵循 GPL-3.0 开源协议。新增六大音乐平台音源聚合：**网易云 / QQ / 酷狗 / 酷我 / 汽水 / 咪咕**，并修复了酷狗搜索偶发空结果的问题。产品名保持 Mineradio 不变，可覆盖安装原版。
+>
+> 下载与自动更新均指向本仓库 Release：https://github.com/baikune258/mineradio-aggregate/releases
+
 ![Mineradio 暗场启动页](./docs/assets/readme/cinema-beat-smoke.png)
 
 Mineradio 是一款 Windows 桌面沉浸式音乐播放器，把搜索播放、歌词舞台、粒子视觉、3D 歌单架和完整桌面模式组合成一个更接近现场感的私人音乐空间。
 
 ## 立即下载 Windows 安装包
 
-> 本次下载入口已更换，请使用下面的新网盘链接，并更新旧收藏。通过公告中的网盘入口下载，可以继续使用现有版本；项目目前处于长期停更状态。
-
-| 下载入口 | 推荐人群 | 链接 |
+| 下载入口 | 说明 | 链接 |
 | --- | --- | --- |
-| 夸克盘 | 夸克用户 | [下载 Mineradio 2.2.0](https://pan.quark.cn/s/4b124d3e81d3) |
-| 百度云 | 百度网盘用户（提取码 `SJHP`） | [下载 Mineradio 2.2.0](https://pan.baidu.com/s/17CwpHUza67w_Grgc3s5nOw?pwd=SJHP) |
-| GitHub Release | 版本说明与源码 | [查看 Mineradio 2.2.0](https://github.com/XxHuberrr/Mineradio/releases/tag/v2.2.0) |
+| GitHub Release（聚合版） | 二创版安装包（推荐） | [下载 Mineradio 2.2.3](https://github.com/baikune258/mineradio-aggregate/releases/latest) |
+| 原版仓库 | 原版安装包与源码 | [查看 Mineradio 2.2.0](https://github.com/XxHuberrr/Mineradio/releases/tag/v2.2.0) |
 
-本页、发布公告和软件更新入口使用相同的两条新链接。旧分享地址不再作为本次版本的下载入口。
+本页、发布公告和软件更新入口使用相同的链接。旧分享地址不再作为本次版本的下载入口。
 
-安装时只需要下载并运行 `Mineradio-2.2.0-Setup.exe`。不要把 `.blockmap`、`latest.yml` 或 `win-unpacked` 当成正式安装包。
+安装时只需要下载并运行 `Mineradio-2.2.x-Setup.exe`。不要把 `.blockmap`、`latest.yml` 或 `win-unpacked` 当成正式安装包。
 
-2.1.0 用户如果未看到更新提醒，请从托盘彻底退出后重新打开软件，切回普通窗口，等待约 30 秒后查看右上角更新箭头。旧版不会自动弹出公告；也可以直接使用上面的新网盘链接下载安装包。
+2.1.0 用户如果未看到更新提醒，请从托盘彻底退出后重新打开软件，切回普通窗口，等待约 30 秒后查看右上角更新箭头。旧版不会自动弹出公告；也可以直接使用上面的链接下载安装包。
 
 ## 下载或安装被拦截怎么办
 

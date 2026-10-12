@@ -442,43 +442,52 @@ async function fetchNeteaseLyricByName(name, artist) {
   const query = String(name || '').trim();
   if (!query) return { lyric: '', tlyric: '', yrc: '', ytlrc: '', source: '' };
   const artistFirst = String(artist || '').split('/')[0].trim();
-  const keywords = artistFirst ? query + ' ' + artistFirst : query;
-  try {
-    const searchResult = await cloudsearch({ keywords, type: 1, limit: 10, offset: 0, cookie: userCookie });
-    const songs = searchResult && searchResult.body && searchResult.body.result && Array.isArray(searchResult.body.result.songs)
-      ? searchResult.body.result.songs : [];
-    let matched = null;
-    const qName = normalizeFallbackName(query);
-    for (const s of songs) {
-      if (normalizeFallbackName(s && s.name) === qName) { matched = s; break; }
-    }
-    if (!matched && songs.length) matched = songs[0];
-    if (!matched) return { lyric: '', tlyric: '', yrc: '', ytlrc: '', source: '' };
-    const id = matched.id;
-    let body = {};
+  const keywordList = artistFirst ? [query + ' ' + artistFirst, query] : [query];
+  let lastError = null;
+  for (const keywords of keywordList) {
     try {
-      if (typeof lyric_new === 'function') {
-        const nr = await lyric_new({ id, cookie: userCookie, timestamp: Date.now() });
-        body = nr.body || {};
+      const searchResult = await cloudsearch({ keywords, type: 1, limit: 10, offset: 0, cookie: userCookie });
+      const songs = searchResult && searchResult.body && searchResult.body.result && Array.isArray(searchResult.body.result.songs)
+        ? searchResult.body.result.songs : [];
+      let matched = null;
+      const qName = normalizeFallbackName(query);
+      for (const s of songs) {
+        if (normalizeFallbackName(s && s.name) === qName) { matched = s; break; }
       }
-    } catch (errNew) {
-      console.warn('[NeteaseLyricFallback:new]', errNew.message);
+      if (!matched && songs.length) matched = songs[0];
+      if (!matched) { lastError = 'no-match'; continue; }
+      const id = matched.id;
+      let body = {};
+      try {
+        if (typeof lyric_new === 'function') {
+          const nr = await lyric_new({ id, cookie: userCookie, timestamp: Date.now() });
+          body = nr.body || {};
+        }
+      } catch (errNew) {
+        console.warn('[NeteaseLyricFallback:new]', errNew.message);
+      }
+      if (!(body.lrc && body.lrc.lyric) && !(body.yrc && body.yrc.lyric)) {
+        const r = await lyric({ id, cookie: userCookie, timestamp: Date.now() });
+        body = r.body || {};
+      }
+      const lyricText = (body.lrc && body.lrc.lyric) || '';
+      const yrcText = (body.yrc && body.yrc.lyric) || '';
+      if (lyricText || yrcText) {
+        return {
+          lyric: lyricText,
+          tlyric: (body.tlyric && body.tlyric.lyric) || '',
+          yrc: yrcText,
+          ytlrc: (body.ytlrc && body.ytlrc.lyric) || '',
+          source: 'netease-fallback',
+        };
+      }
+      lastError = 'empty-lyric';
+    } catch (err) {
+      console.warn('[NeteaseLyricFallback]', err.message);
+      lastError = err.message;
     }
-    if (!(body.lrc && body.lrc.lyric) && !(body.yrc && body.yrc.lyric)) {
-      const r = await lyric({ id, cookie: userCookie, timestamp: Date.now() });
-      body = r.body || {};
-    }
-    return {
-      lyric: (body.lrc && body.lrc.lyric) || '',
-      tlyric: (body.tlyric && body.tlyric.lyric) || '',
-      yrc: (body.yrc && body.yrc.lyric) || '',
-      ytlrc: (body.ytlrc && body.ytlrc.lyric) || '',
-      source: 'netease-fallback',
-    };
-  } catch (err) {
-    console.warn('[NeteaseLyricFallback]', err.message);
-    return { lyric: '', tlyric: '', yrc: '', ytlrc: '', source: '', error: err.message };
   }
+  return { lyric: '', tlyric: '', yrc: '', ytlrc: '', source: '', error: lastError };
 }
 function readPackageInfo() {
   try {

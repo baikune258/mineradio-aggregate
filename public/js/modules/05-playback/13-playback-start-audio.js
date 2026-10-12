@@ -603,6 +603,43 @@ async function retryNeteaseSourceMatchPlayback(song, data, idx, token, opts, req
   return retryStarted === true;
 }
 
+async function retrySameProviderPlaybackUrl(song, data, idx, token, opts) {
+  if (!song || !data || !data.url) return null;
+  var provider = String(data.provider || data.source || song.provider || song.source || '');
+  if (provider !== 'kuwo' && provider !== 'migu') return null;
+  opts = opts || {};
+  var retryDepth = Math.max(0, Number(opts.sameProviderRefreshDepth) || 0);
+  if (retryDepth >= 2) return null;
+  var nextData = null;
+  try {
+    nextData = await resolveAlbumGaplessPlaybackData(song);
+  } catch (err) {
+    console.warn('[SameProviderRefresh]', provider, 'lookup failed:', err);
+    return token === trackSwitchToken ? null : false;
+  }
+  if (token !== trackSwitchToken) return false;
+  if (!nextData || !nextData.url) return null;
+  if (String(nextData.url) === String(data.url)) return null;
+  if (!opts.startupAutoplay && !opts.suppressPlayFailureNotice && typeof showSourceFallbackNotice === 'function') {
+    showSourceFallbackNotice('正在刷新播放链接', '当前播放地址可能已过期，正在重新获取。');
+  }
+  var retryOpts = Object.assign({}, opts, {
+    albumGaplessHandoff: false,
+    albumGaplessMixed: false,
+    preloadedAudio: null,
+    preloadedData: null,
+    preloadedProxyAudioUrl: '',
+    preResolvedPlaybackData: Object.assign({}, nextData, { provider: provider }),
+    sameProviderRefreshDepth: retryDepth + 1,
+    suppressPlayFailureNotice: true,
+  });
+  var retryPromise = playQueueAt(idx, retryOpts);
+  var retryToken = trackSwitchToken;
+  var retryStarted = await retryPromise;
+  if (retryToken !== trackSwitchToken) return false;
+  return retryStarted === true;
+}
+
 async function resolveAlbumGaplessPlaybackData(song) {
   if (!song || song.type === 'local' || song.source === 'local' || song.localUrl) return null;
   var playbackProvider = normalizePlaybackProvider(songProviderKey(song));
@@ -1432,6 +1469,10 @@ async function playQueueAt(idx, opts) {
         return settleExpiredSourceFallbackPlayback(idx, token, opts);
       }
       if (!playbackStarted) {
+        if ((playbackProvider === 'kuwo' || playbackProvider === 'migu') && data && data.url) {
+          var sameProviderRetry = await retrySameProviderPlaybackUrl(song, data, idx, token, retryPlaybackOpts);
+          if (sameProviderRetry !== null) return sameProviderRetry === true;
+        }
         if (playbackProvider === 'netease' && data && data.sourceMatch) {
           var sameSourceRetry = await retryNeteaseSourceMatchPlayback(song, data, idx, token, retryPlaybackOpts, requestedQuality);
           if (sameSourceRetry !== null) return sameSourceRetry === true;

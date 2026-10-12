@@ -126,11 +126,32 @@ async function handleKuwoSearch(keywords, limit, offset) {
   if (!kw) return [];
   const skip = start % lim;
   const first = await kuwoSearchRaw(kw, lim, Math.floor(start / lim));
+  let items;
   if (!skip || first.length < lim) {
-    return first.slice(skip).map(mapKuwoSearchItem).filter(s => s.name && s.id);
+    items = first.slice(skip, skip + lim).map(mapKuwoSearchItem).filter(s => s.name && s.id);
+  } else {
+    const next = await kuwoSearchRaw(kw, lim, Math.floor(start / lim) + 1);
+    items = first.concat(next).slice(skip, skip + lim).map(mapKuwoSearchItem).filter(s => s.name && s.id);
   }
-  const next = await kuwoSearchRaw(kw, lim, Math.floor(start / lim) + 1);
-  return first.concat(next).slice(skip, skip + lim).map(mapKuwoSearchItem).filter(s => s.name && s.id);
+  return dedupeKuwoSongs(items);
+}
+
+function normalizeKuwoText(value) {
+  return String(value || '').normalize('NFKC').toLowerCase()
+    .replace(/[（(【\[].*?[）)】\]]/g, '')
+    .replace(/[\s·・\-—_.,，。:：'"“”‘’/\\|!?！？]+/g, '');
+}
+
+function dedupeKuwoSongs(list) {
+  const seen = new Set();
+  const out = [];
+  for (const s of list) {
+    const key = String(s.id || '') || (normalizeKuwoText(s.name) + '|' + normalizeKuwoText(s.artist));
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(s);
+  }
+  return out.sort((a, b) => (Number(b.popularity) || 0) - (Number(a.popularity) || 0));
 }
 
 async function handleKuwoSongUrl(params) {
