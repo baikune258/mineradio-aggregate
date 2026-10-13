@@ -320,11 +320,44 @@ function cacheSettingsConfigPath() {
 }
 
 function defaultCacheRootPath() {
-  const dDrive = 'D:\\';
-  return fs.existsSync(dDrive)
-    ? path.join(dDrive, 'MineradioCache')
-    : path.join(app.getPath('userData'), 'cache');
+  // 二改：缓存并入安装目录（数据 data 与缓存 cache 同一文件夹），D 盘只保留一个 Mineradio 目录
+  return path.join(path.dirname(STABLE_USER_DATA_PATH), 'cache');
 }
+
+// 二改：把旧版遗留的独立缓存目录（D:\MineradioCache 或安装目录同级的 MineradioCache）
+// 合并进安装目录 cache，并在设置文件中重置为新默认，保证"软件的文件结合在一块"。
+function migrateLegacyCacheIntoInstallDir() {
+  const newRoot = defaultCacheRootPath();
+  const installDir = path.dirname(STABLE_USER_DATA_PATH);
+  const candidates = [];
+  if (process.platform === 'win32') candidates.push('D:\\MineradioCache');
+  candidates.push(
+    path.join(installDir, '..', 'MineradioCache'),
+    path.join(installDir, 'MineradioCache'),
+    path.join(installDir, '..', 'MineradioCache-fallback')
+  );
+  let legacy = null;
+  for (const c of candidates) {
+    if (c && c !== newRoot && fs.existsSync(c)) { legacy = c; break; }
+  }
+  if (!legacy) return false;
+  try {
+    if (!fs.existsSync(newRoot)) {
+      fs.mkdirSync(path.dirname(newRoot), { recursive: true });
+      fs.renameSync(legacy, newRoot);
+      console.log('[Cache] 已把旧缓存合并进安装目录:', newRoot);
+    } else {
+      fs.rmSync(legacy, { recursive: true, force: true });
+      console.log('[Cache] 已清理重复的旧缓存目录:', legacy);
+    }
+    writeCacheSettings({ rootPath: newRoot });
+    return true;
+  } catch (error) {
+    console.warn('[Cache] 旧缓存合并失败，保持现状继续启动:', error.message);
+    return false;
+  }
+}
+migrateLegacyCacheIntoInstallDir();
 
 function normalizeCacheRootPath(value) {
   const fallback = defaultCacheRootPath();
