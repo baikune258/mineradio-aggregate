@@ -2995,6 +2995,7 @@ function audioContentTypeForUrl(audioUrl, upstreamType) {
   if (/\.(m4a|mp4)$/.test(pathname)) return 'audio/mp4';
   if (/\.ogg$/.test(pathname)) return 'audio/ogg';
   if (/\.wav$/.test(pathname)) return 'audio/wav';
+  if (/\.aac$/.test(pathname)) return 'audio/aac';
   return upstreamType || 'audio/mpeg';
 }
 
@@ -7017,6 +7018,26 @@ const server = http.createServer(async (req, res) => {
       sendJSON(res, await listenerServerIpc((ls, p) => ls.bindMember(p.token, p.expireAt))(body), 200);
       return;
     }
+    if (pn === '/api/listener/create-order' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.createOrder(p.token, p.plan))(body), 200);
+      return;
+    }
+    if (pn === '/api/listener/my-orders' && req.method === 'GET') {
+      const token = String(url.searchParams.get('token') || '');
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.listMyOrders(p.token))(lb({ token })), 200);
+      return;
+    }
+    if (pn === '/api/listener/pending-orders' && req.method === 'GET') {
+      const password = String(url.searchParams.get('password') || '');
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.listPendingOrders(p.password))(lb({ password })), 200);
+      return;
+    }
+    if (pn === '/api/listener/approve-order' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.approveOrder(p.password, p.orderId))(body), 200);
+      return;
+    }
     if (pn === '/api/listener/add-playlist' && req.method === 'POST') {
       const body = await readRequestBody(req);
       sendJSON(res, await listenerServerIpc((ls, p) => ls.addPlaylist(p.token, p.name))(body), 200);
@@ -7082,6 +7103,23 @@ const server = http.createServer(async (req, res) => {
       sendJSON(res, r, r.ok ? 200 : 400);
       return;
     }
+    if (pn === '/api/creator/autoapprove-token' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      let adminPassword = 'mineradio-admin';
+      try {
+        const adminFile = path.join(creatorPlatform.dataDir, '..', 'member-admin.json');
+        if (fs.existsSync(adminFile)) {
+          const admin = JSON.parse(fs.readFileSync(adminFile, 'utf8'));
+          if (admin && admin.password) adminPassword = String(admin.password);
+        }
+      } catch (_) {}
+      if (String(body.password || '') !== adminPassword) {
+        sendJSON(res, { ok: false, error: '管理口令不正确' }, 200);
+        return;
+      }
+      sendJSON(res, { ok: true, token: creatorPlatform.makeAutoApproveToken(300) }, 200);
+      return;
+    }
 
     if (pn === '/api/creator/me' && req.method === 'GET') {
       const user = creatorPlatform.resolveToken(String(url.searchParams.get('token') || ''));
@@ -7122,7 +7160,7 @@ const server = http.createServer(async (req, res) => {
         sendJSON(res, { ok: false, error: '音频格式仅支持 mp3 / flac / wav / m4a / ogg / aac' }, 400);
         return;
       }
-      const MAX_AUDIO_BYTES = 300 * 1024 * 1024;
+      const MAX_AUDIO_BYTES = 500 * 1024 * 1024;
       if (audio.size > MAX_AUDIO_BYTES) {
         try { fs.unlinkSync(audio.tempPath); } catch (_) {}
         sendJSON(res, { ok: false, error: '音频超过 300MB 限制' }, 400);

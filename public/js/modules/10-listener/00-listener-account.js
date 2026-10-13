@@ -40,6 +40,10 @@
       listenerToggleFavorite: (t, tr) => post('/api/listener/toggle-favorite', { token: t, track: tr }),
       listenerIsFavorite: (t, k) => get('/api/listener/is-favorite?token=' + encodeURIComponent(t) + '&trackKey=' + encodeURIComponent(k)),
       listenerRecordPlay: (t, tr) => post('/api/listener/record-play', { token: t, track: tr }),
+      listenerCreateOrder: (t, plan) => post('/api/listener/create-order', { token: t, plan: plan }),
+      listenerMyOrders: (t) => get('/api/listener/my-orders?token=' + encodeURIComponent(t)),
+      listenerPendingOrders: (p) => get('/api/listener/pending-orders?password=' + encodeURIComponent(p)),
+      listenerApproveOrder: (p, id) => post('/api/listener/approve-order', { password: p, orderId: id }),
     };
   }
 
@@ -143,7 +147,7 @@
       '#mineradio-listener-panel .mr-hr{border:none;border-top:1px solid rgba(255,255,255,.1);margin:14px 0}',
       '#mineradio-listener-panel .mr-picker{display:flex;gap:6px;align-items:center;margin-top:6px}',
       '#mineradio-listener-panel .mr-picker select{flex:1;background:rgba(255,255,255,.07);border:1px solid rgba(120,140,255,.3);border-radius:6px;color:#fff;padding:6px 8px;font-size:12px;outline:none}',
-      '#mineradio-listener-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99998}',
+      '#mineradio-listener-overlay{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:99998}',
     ].join('');
     document.head.appendChild(style);
   }
@@ -209,12 +213,11 @@
     const stats = el('div', 'mr-profile-stats');
     const statPl = el('span'); statPl.innerHTML = '<b>' + (accountState.account.playlists || []).length + '</b> 歌单';
     const statFav = el('span'); statFav.innerHTML = '<b>' + (accountState.account.favorites || []).length + '</b> 收藏';
-    const statRec = el('span'); statRec.innerHTML = '<b>' + (accountState.account.recentPlays || []).length + '</b> 收听';
-    stats.appendChild(statPl); stats.appendChild(statFav); stats.appendChild(statRec);
+    stats.appendChild(statPl); stats.appendChild(statFav);
     main.appendChild(stats);
     profile.appendChild(avatar);
     profile.appendChild(main);
-    profile.appendChild(el('div', 'mr-profile-badge' + (isMember ? '' : ' off'), isMember ? 'VIP 会员' : '未开通会员'));
+    profile.appendChild(el('div', 'mr-profile-badge' + (isMember ? '' : ' off'), isMember ? 'MR 会员' : '未开通会员'));
     container.appendChild(profile);
 
     const statusRow = el('div', 'mr-status');
@@ -338,32 +341,7 @@
       });
       container.appendChild(favList);
     } else {
-      container.appendChild(el('div', 'mr-dim', '还没有收藏，播放歌曲时可从收听记录收藏'));
-    }
-
-    // 收听记录
-    container.appendChild(el('div', 'mr-sec', '收听记录'));
-    const recents = accountState.account.recentPlays || [];
-    if (recents.length) {
-      const recList = el('div', 'mr-track-list');
-      recents.forEach(function (t) {
-        recList.appendChild(trackRow(t, [
-          function (track) {
-            const btn = el('button', 'mr-btn small ghost', '收藏');
-            btn.onclick = function () {
-              listenerApi().listenerToggleFavorite({ token: accountState.token, track: track })
-                .then(function (res) {
-                  if (res && res.ok) { accountState.account = res.account; toast(res.added ? '已收藏' : '已取消收藏'); rebuildPanel(); }
-                }).catch(function () { toast('操作失败'); });
-            };
-            return btn;
-          },
-          function (track) { return addToPlaylistButton(track); },
-        ]));
-      });
-      container.appendChild(recList);
-    } else {
-      container.appendChild(el('div', 'mr-dim', '播放歌曲后会记录在这里（最近 50 首）'));
+      container.appendChild(el('div', 'mr-dim', '还没有收藏，播放歌曲时点收藏即可加入'));
     }
 
     // 备份

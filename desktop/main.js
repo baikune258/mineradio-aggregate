@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, screen, session, globalShortcut, dialog, Tray, Menu, protocol, desktopCapturer, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, screen, session, globalShortcut, dialog, Tray, Menu, protocol, desktopCapturer, powerMonitor, clipboard } = require('electron');
 const net = require('net');
 const http = require('http');
 const path = require('path');
@@ -18,6 +18,8 @@ const { BuiltInPlaylistLibrary } = require('./built-in-playlist-library');
 const { MemberSystem } = require('./member-system');
 const { WallpaperEngineRuntime } = require('./wallpaper-engine-runtime');
 const { FullDesktopModeRuntime } = require('./full-desktop-mode-runtime');
+let autoUpdater = null;
+try { autoUpdater = require('electron-updater').autoUpdater; } catch (_) { autoUpdater = null; }
 const {
   LoginEasterEggGate,
   LOGIN_EASTER_EGG_GATE_VERSION,
@@ -320,11 +322,44 @@ function cacheSettingsConfigPath() {
 }
 
 function defaultCacheRootPath() {
-  const dDrive = 'D:\\';
-  return fs.existsSync(dDrive)
-    ? path.join(dDrive, 'MineradioCache')
-    : path.join(app.getPath('userData'), 'cache');
+  // 二改：缓存并入安装目录（数据 data 与缓存 cache 同一文件夹），D 盘只保留一个 Mineradio 目录
+  return path.join(path.dirname(STABLE_USER_DATA_PATH), 'cache');
 }
+
+// 二改：把旧版遗留的独立缓存目录（D:\MineradioCache 或安装目录同级的 MineradioCache）
+// 合并进安装目录 cache，并在设置文件中重置为新默认，保证"软件的文件结合在一块"。
+function migrateLegacyCacheIntoInstallDir() {
+  const newRoot = defaultCacheRootPath();
+  const installDir = path.dirname(STABLE_USER_DATA_PATH);
+  const candidates = [];
+  if (process.platform === 'win32') candidates.push('D:\\MineradioCache');
+  candidates.push(
+    path.join(installDir, '..', 'MineradioCache'),
+    path.join(installDir, 'MineradioCache'),
+    path.join(installDir, '..', 'MineradioCache-fallback')
+  );
+  let legacy = null;
+  for (const c of candidates) {
+    if (c && c !== newRoot && fs.existsSync(c)) { legacy = c; break; }
+  }
+  if (!legacy) return false;
+  try {
+    if (!fs.existsSync(newRoot)) {
+      fs.mkdirSync(path.dirname(newRoot), { recursive: true });
+      fs.renameSync(legacy, newRoot);
+      console.log('[Cache] 已把旧缓存合并进安装目录:', newRoot);
+    } else {
+      fs.rmSync(legacy, { recursive: true, force: true });
+      console.log('[Cache] 已清理重复的旧缓存目录:', legacy);
+    }
+    writeCacheSettings({ rootPath: newRoot });
+    return true;
+  } catch (error) {
+    console.warn('[Cache] 旧缓存合并失败，保持现状继续启动:', error.message);
+    return false;
+  }
+}
+migrateLegacyCacheIntoInstallDir();
 
 function normalizeCacheRootPath(value) {
   const fallback = defaultCacheRootPath();
@@ -791,6 +826,52 @@ function isTrustedMainDocumentUrl(value) {
   } catch (_) {
     return false;
   }
+}
+
+function pushUpdateStatus(payload) {
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('mineradio-update-status', payload);
+  } catch (_) {}
+}
+
+function setupAutoUpdater() {
+  if (!autoUpdater) return;
+  try {
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.on('checking-for-update', () => pushUpdateStatus({ state: 'checking' }));
+    autoUpdater.on('update-available', (info) => pushUpdateStatus({ state: 'available', version: info && info.version || '' }));
+    autoUpdater.on('update-not-available', () => pushUpdateStatus({ state: 'none' }));
+    autoUpdater.on('download-progress', (p) => pushUpdateStatus({ state: 'downloading', percent: Number(p && p.percent) || 0 }));
+    autoUpdater.on('update-downloaded', (info) => {
+      pushUpdateStatus({ state: 'downloaded', version: info && info.version || '' });
+      // 二改：下载完成 3 秒后自动重启生效（NSIS --updated 静默更新，不弹安装向导）
+      setTimeout(() => {
+        try { autoUpdater.quitAndInstall(false, true); } catch (e) { console.warn('[Updater] auto install failed:', e && e.message || e); }
+      }, 3000);
+    });
+    autoUpdater.on('error', (err) => pushUpdateStatus({ state: 'error', message: err && err.message || String(err) }));
+  } catch (error) { console.warn('[Updater] events failed:', error && error.message || error); }
+
+  ipcMain.handle('mineradio-check-update', async (event) => {
+    if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+    if (!autoUpdater) return { ok: false, error: '更新服务不可用' };
+    if (!app.isPackaged) return { ok: false, error: '当前为开发模式，检查更新仅安装版可用' };
+    try { autoUpdater.checkForUpdates(); return { ok: true }; }
+    catch (e) { return { ok: false, error: e.message }; }
+  });
+  ipcMain.handle('mineradio-download-update', async (event) => {
+    if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+    if (!autoUpdater) return { ok: false, error: '更新服务不可用' };
+    try { autoUpdater.downloadUpdate(); return { ok: true }; }
+    catch (e) { return { ok: false, error: e.message }; }
+  });
+  ipcMain.handle('mineradio-install-update', async (event) => {
+    if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+    if (!autoUpdater) return { ok: false, error: '更新服务不可用' };
+    try { autoUpdater.quitAndInstall(false, true); return { ok: true }; }
+    catch (e) { return { ok: false, error: e.message }; }
+  });
 }
 
 function isTrustedMainWindowIpc(event) {
@@ -4613,10 +4694,18 @@ ipcMain.handle('mineradio-member-status', async (event) => {
   return Object.assign({ ok: true }, memberSystem.status());
 });
 
-ipcMain.handle('mineradio-member-activate', async (event, code) => {
+ipcMain.handle('mineradio-member-activate', async (event, code, listenerToken) => {
   if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
   try {
-    return memberSystem.activate(code);
+    const result = memberSystem.activate(code);
+    // 二改：激活时若已登录听众账号，会员有效期同步写入账号（换设备/重装导入账号即可恢复）
+    if (result && result.ok && listenerToken && listenerSystemForMain) {
+      try {
+        const bound = listenerSystemForMain.bindMember(listenerToken, result.expireAt);
+        if (bound && bound.ok) result.boundAccount = bound.account;
+      } catch (_) {}
+    }
+    return result;
   } catch (error) {
     return { ok: false, error: error.message || 'MEMBER_ACTIVATE_FAILED' };
   }
@@ -4655,6 +4744,89 @@ ipcMain.handle('mineradio-local-library-set-member-only', async (event, payload 
   }
 });
 
+// ---------- 听众账号（二改新增：注册登录 / 歌单 / 收藏 / 收听记录 / 会员绑定 / 备份） ----------
+function listenerIpc(fn) {
+  return async (event, ...args) => {
+    if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+    if (!listenerSystemForMain) return { ok: false, error: '听众账号服务未就绪' };
+    try {
+      return fn(listenerSystemForMain, ...args);
+    } catch (error) {
+      return { ok: false, error: error.message || 'LISTENER_FAILED' };
+    }
+  };
+}
+
+ipcMain.handle('mineradio-listener-register', listenerIpc((ls, payload = {}) => ls.register(payload.name, payload.password)));
+ipcMain.handle('mineradio-listener-login', listenerIpc((ls, payload = {}) => ls.login(payload.name, payload.password)));
+ipcMain.handle('mineradio-listener-logout', listenerIpc((ls, payload = {}) => ls.logout(payload.token)));
+ipcMain.handle('mineradio-listener-status', listenerIpc((ls, payload = {}) => ls.status(payload.token)));
+ipcMain.handle('mineradio-listener-member-bind', listenerIpc((ls, payload = {}) => ls.bindMember(payload.token, payload.expireAt)));
+ipcMain.handle('mineradio-listener-create-order', listenerIpc((ls, payload = {}) => ls.createOrder(payload.token, payload.plan)));
+ipcMain.handle('mineradio-listener-my-orders', listenerIpc((ls, payload = {}) => ls.listMyOrders(payload.token)));
+ipcMain.handle('mineradio-listener-pending-orders', listenerIpc((ls, payload = {}) => ls.listPendingOrders(payload.password)));
+ipcMain.handle('mineradio-listener-approve-order', listenerIpc((ls, payload = {}) => ls.approveOrder(payload.password, payload.orderId)));
+ipcMain.handle('mineradio-clipboard-write', (event, text) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+  try { clipboard.writeText(String(text || '')); return { ok: true }; }
+  catch (e) { return { ok: false, error: e && e.message || String(e) }; }
+});
+ipcMain.handle('mineradio-listener-add-playlist', listenerIpc((ls, payload = {}) => ls.addPlaylist(payload.token, payload.name)));
+ipcMain.handle('mineradio-listener-rename-playlist', listenerIpc((ls, payload = {}) => ls.renamePlaylist(payload.token, payload.playlistId, payload.name)));
+ipcMain.handle('mineradio-listener-delete-playlist', listenerIpc((ls, payload = {}) => ls.deletePlaylist(payload.token, payload.playlistId)));
+ipcMain.handle('mineradio-listener-add-track', listenerIpc((ls, payload = {}) => ls.addTrackToPlaylist(payload.token, payload.playlistId, payload.track)));
+ipcMain.handle('mineradio-listener-remove-track', listenerIpc((ls, payload = {}) => ls.removeTrackFromPlaylist(payload.token, payload.playlistId, payload.trackKey)));
+ipcMain.handle('mineradio-listener-toggle-favorite', listenerIpc((ls, payload = {}) => ls.toggleFavorite(payload.token, payload.track)));
+ipcMain.handle('mineradio-listener-is-favorite', listenerIpc((ls, payload = {}) => ls.isFavorite(payload.token, payload.trackKey)));
+ipcMain.handle('mineradio-listener-record-play', listenerIpc((ls, payload = {}) => ls.recordPlay(payload.token, payload.track)));
+ipcMain.handle('mineradio-listener-export', listenerIpc((ls, payload = {}) => ls.exportAccount(payload.token)));
+ipcMain.handle('mineradio-listener-import', listenerIpc((ls, payload = {}) => ls.importAccount(payload.backup)));
+
+// ---------- 设置：应用信息 / 打开数据目录 / 清缓存（二改新增） ----------
+ipcMain.handle('mineradio-app-info', async (event) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+  try {
+    return {
+      ok: true,
+      installDataDir: STABLE_USER_DATA_PATH,
+      cacheRoot: cacheSettings && cacheSettings.rootPath || defaultCacheRootPath(),
+    };
+  } catch (error) {
+    return { ok: false, error: error.message || 'APP_INFO_FAILED' };
+  }
+});
+
+ipcMain.handle('mineradio-open-data-dir', async (event, target) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+  try {
+    const dir = String(target || '') === 'cache'
+      ? (cacheSettings && cacheSettings.rootPath || defaultCacheRootPath())
+      : STABLE_USER_DATA_PATH;
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    await shell.openPath(dir);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error.message || 'OPEN_DIR_FAILED' };
+  }
+});
+
+ipcMain.handle('mineradio-clear-cache', async (event) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+  try {
+    const root = cacheSettings && cacheSettings.rootPath || defaultCacheRootPath();
+    if (root && root !== STABLE_USER_DATA_PATH && root !== '/') {
+      const entries = fs.readdirSync(root);
+      entries.forEach(function (name) {
+        const p = path.join(root, name);
+        try { fs.rmSync(p, { recursive: true, force: true }); } catch (_) {}
+      });
+    }
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error.message || 'CLEAR_CACHE_FAILED' };
+  }
+});
+
 // ---------- 创作者平台（二改新增：审核 / 分成结算 / 全局统计） ----------
 const creatorPlatformForMain = (() => {
   try {
@@ -4662,6 +4834,17 @@ const creatorPlatformForMain = (() => {
     return new CP();
   } catch (error) {
     console.warn('[Creator] 主进程创作者平台初始化失败:', error.message);
+    return null;
+  }
+})();
+
+// ---------- 听众账号（二改新增：个人歌单 / 收藏 / 收听记录 / 会员绑定） ----------
+const listenerSystemForMain = (() => {
+  try {
+    const { ListenerSystem: LS } = require('../listener-system');
+    return new LS();
+  } catch (error) {
+    console.warn('[Listener] 主进程听众账号初始化失败:', error.message);
     return null;
   }
 })();
@@ -6069,6 +6252,11 @@ if (!gotSingleInstanceLock) {
   });
 
   app.whenReady().then(async () => {
+    try {
+      setupAutoUpdater();
+    } catch (error) {
+      console.warn('[Updater] setup failed:', error && error.message || error);
+    }
     try {
       await localMusicLibrary.installProtocol(protocol);
     } catch (error) {

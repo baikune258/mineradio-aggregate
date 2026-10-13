@@ -25,7 +25,7 @@
       </div>
       <div class="desktop-window-controls">
         <button id="visual-guide-btn" class="icon-btn" type="button" onclick="startVisualGuide({ manual: true })"
-          title="查看使用引导" aria-label="查看使用引导">?</button>
+          title="查看使用引导" aria-label="查看使用引导" style="background:#111418;color:#fff;border:none">?</button>
         <button id="update-entry" class="update-entry" type="button" onclick="openUpdatePanel()" title="发现新版本"
           aria-label="发现新版本">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -316,7 +316,7 @@
           <path d="M9.5 20v-5h5v5" />
         </svg>
       </button>
-      <button id="user-btn" class="icon-btn logged-out login-eye-avatar" onclick="onUserBtnClick()" title="登录账号">
+      <button id="user-btn" class="icon-btn logged-out login-eye-avatar" onclick="onUserBtnClick()" title="Mineradio 账号">
         <span class="login-easter-eyes compact" aria-hidden="true">
           <i class="login-easter-eye login-easter-eye-big"></i>
           <i class="login-easter-eye login-easter-eye-small"></i>
@@ -1171,7 +1171,7 @@
         <line x1="12" y1="16" x2="12.01" y2="16" />
       </svg>
       <span id="trial-text">仅播放试听片段</span>
-      <span id="trial-login-btn" class="login-link" onclick="showLoginModal()">扫码登录</span>
+      <span id="trial-login-btn" class="login-link" onclick="window.openListenerAccountPanel&&window.openListenerAccountPanel();">Mineradio 账号</span>
       <span class="close" onclick="document.getElementById('trial-banner').classList.remove('show')">×</span>
     </div>
 
@@ -1484,12 +1484,12 @@
     <div id="login-modal" class="modal-mask">
       <div class="modal dual-login-modal">
         <div class="login-panel-head">
-          <div><b>登录接入</b><small>拖接口端口到 MR</small></div>
+          <div><b>账号</b><small>Mineradio 自有账号</small></div>
           <button id="login-reset-all-btn" class="login-reset-all-btn" type="button"
             onclick="logoutAllAccountsAndResetEasterEgg()" title="清除所有平台登录并重新锁定彩蛋">退出登录</button>
           <button class="login-panel-close" type="button" onclick="closeLoginModal()">×</button>
         </div>
-        <section id="login-easter-egg-gate" class="login-easter-egg-gate" aria-hidden="true">
+        <section id="login-easter-egg-gate" class="login-easter-egg-gate" aria-hidden="true" style="display:none">
           <button id="login-easter-eye-trigger" class="login-easter-eye-trigger" type="button"
             onclick="handleLoginEasterEggTap()" aria-label="轻触大小眼">
             <span class="login-easter-eyes" aria-hidden="true">
@@ -1514,7 +1514,13 @@
             <div id="login-easter-status" class="login-easter-status" aria-live="polite"></div>
           </div>
         </section>
-        <div id="login-node-graph" class="login-node-graph" data-provider="netease">
+        <div class="login-account-only" style="text-align:center;padding:20px 8px">
+          <div style="color:#e8ecff;font-size:16px;font-weight:700;margin-bottom:8px">平台账号登录已停用</div>
+          <div style="color:#9aa3c7;font-size:12px;line-height:1.7;margin-bottom:16px">本版本只使用 Mineradio 自有账号：<br>注册后管理个人歌单 / 收藏 / 收听记录，会员激活自动绑定账号，换设备不丢。</div>
+          <button id="login-own-account-btn" class="modal-btn primary" type="button"
+            onclick="window.openListenerAccountPanel&&window.openListenerAccountPanel();window.closeLoginModal&&window.closeLoginModal();">使用 Mineradio 账号</button>
+        </div>
+        <div id="login-node-graph" class="login-node-graph" data-provider="netease" style="display:none">
           <svg id="login-workflow-svg" class="workflow-link-layer login-link-layer" aria-hidden="true"></svg>
           <div class="login-platform-tabs login-node-providers" id="login-platform-tabs">
             <button id="login-provider-netease" class="netease active workflow-node" type="button" data-login-provider="netease"

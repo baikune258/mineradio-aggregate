@@ -225,12 +225,13 @@
     dropZone.addEventListener('drop', function (e) {
       e.preventDefault(); e.stopPropagation();
       var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f && /^audio\//.test(f.type || '')) {
+      var audioLike = f && (/^audio\//.test(f.type || '') || /\.(mp3|flac|wav|m4a|ogg|aac|ape|wma)$/i.test(f.name || ''));
+      if (f && audioLike) {
         droppedAudioFile = f;
         dropZone.className = 'mr-dropzone done';
         dropHint.textContent = '已选择：' + f.name;
         toast('已载入音频：' + f.name);
-      } else { toast('请拖入音频文件（mp3 / flac / wav 等）'); }
+      } else { toast('请拖入音频文件（mp3 / flac / wav / m4a / ogg / aac 等）'); }
     });
     root.appendChild(titleInput);
     root.appendChild(artistInput);
@@ -280,8 +281,14 @@
         var p = window.prompt('请输入管理口令（平台方免审）：');
         if (p == null) { uploadBtn.disabled = false; uploadBtn.textContent = '提交上传（待审核）'; return; }
         var dw = window.desktopWindow || {};
-        if (typeof dw.creatorAutoApproveToken !== 'function') { toast('免审功能不可用'); uploadBtn.disabled = false; uploadBtn.textContent = '提交上传（待审核）'; return; }
-        dw.creatorAutoApproveToken(String(p || ''))
+        var approveReq = (typeof dw.creatorAutoApproveToken === 'function')
+          ? dw.creatorAutoApproveToken(String(p || ''))
+          : fetch(API + '/autoapprove-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ password: String(p || '') }),
+            }).then(function (r) { return r.json(); });
+        approveReq
           .then(function (r) {
             if (r && r.ok) { doUpload(r.token); }
             else { toast((r && r.error) || '管理口令不正确'); uploadBtn.disabled = false; uploadBtn.textContent = '提交上传（待审核）'; }

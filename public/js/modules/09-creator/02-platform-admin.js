@@ -5,6 +5,7 @@
   var panelEl = null;
   var overlayEl = null;
   var unlocked = false;
+  var adminPassword = '';
 
   function el(tag, cls, text) {
     var n = document.createElement(tag);
@@ -23,7 +24,7 @@
     var s = document.createElement('style');
     s.id = 'mr-admin-styles';
     s.textContent = [
-      '#mr-admin-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99996}',
+      '#mr-admin-overlay{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:99996}',
       '#mr-admin-panel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:440px;max-height:84vh;overflow-y:auto;background:#16161d;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:20px;z-index:99997;color:#eee;font-size:13px;box-shadow:0 18px 50px rgba(0,0,0,.5)}',
       '#mr-admin-panel h3{margin:0 0 6px;font-size:16px;color:#fff}',
       '.ma-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}',
@@ -52,6 +53,7 @@
     if (overlayEl) { overlayEl.remove(); overlayEl = null; }
     if (panelEl) { panelEl.remove(); panelEl = null; }
     unlocked = false;
+    adminPassword = '';
   }
 
   function openAdmin() {
@@ -89,6 +91,7 @@
           unlockBtn.textContent = '解锁';
           if (!d.ok) { toast(d.error || '口令错误'); return; }
           unlocked = true;
+          adminPassword = passInput.value.trim();
           renderOverview(d);
         })
         .catch(function () { unlockBtn.disabled = false; unlockBtn.textContent = '解锁'; toast('验证失败'); });
@@ -125,6 +128,47 @@
       panelEl.appendChild(card);
     });
 
+    // 会员订单核销（付费开通会员）
+    panelEl.appendChild(el('div', 'ma-sec', '会员订单（待核销）'));
+    var orderBox = el('div');
+    orderBox.appendChild(el('div', 'ma-dim', '加载中…'));
+    panelEl.appendChild(orderBox);
+    function loadOrders() {
+      var dw = window.desktopWindow || {};
+      var req = (typeof dw.listenerPendingOrders === 'function')
+        ? dw.listenerPendingOrders({ password: adminPassword })
+        : fetch('/api/listener/pending-orders?password=' + encodeURIComponent(adminPassword)).then(function (r) { return r.json(); });
+      req.then(function (res) {
+        res = res || {};
+        var orders = (res.orders || []).filter(function (o) { return o.status !== 'done'; });
+        orderBox.innerHTML = '';
+        if (!orders.length) { orderBox.appendChild(el('div', 'ma-dim', '暂无待核销订单')); return; }
+        var planMap = { month: '1 个月', quarter: '3 个月', year: '12 个月' };
+        orders.forEach(function (o) {
+          var card = el('div', 'ma-card');
+          card.appendChild(el('div', '', o.id + ' ｜ ' + (planMap[o.plan] || o.plan) + ' ｜ ¥' + o.amount));
+          card.appendChild(el('div', 'ma-dim', '账号：' + (o.accountName || '未绑定') + ' ｜ 状态：' + (o.status === 'done' ? '已开通' : '待核销')));
+          var okBtn = el('button', 'ma-btn ok', '确认收款并开通');
+          card.appendChild(okBtn);
+          okBtn.onclick = function () {
+            okBtn.disabled = true;
+            okBtn.textContent = '开通中…';
+            var dw2 = window.desktopWindow || {};
+            var appr = (typeof dw2.listenerApproveOrder === 'function')
+              ? dw2.listenerApproveOrder({ password: adminPassword, orderId: o.id })
+              : fetch('/api/listener/approve-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: adminPassword, orderId: o.id }) }).then(function (r) { return r.json(); });
+            appr.then(function (r2) {
+              if (r2 && r2.ok) { toast('已开通会员'); loadOrders(); }
+              else toast((r2 && r2.error) || '核销失败');
+            }).catch(function () { toast('核销失败'); }).finally(function () { okBtn.disabled = false; });
+          };
+          card.appendChild(okBtn);
+          orderBox.appendChild(card);
+        });
+      }).catch(function () { orderBox.innerHTML = ''; orderBox.appendChild(el('div', 'ma-dim', '订单加载失败')); });
+    }
+    loadOrders();
+
     // 创作者
     panelEl.appendChild(el('div', 'ma-sec', '创作者（' + (data.creators || []).length + '）'));
     (data.creators || []).forEach(function (c) {
@@ -148,19 +192,16 @@
     panelEl.appendChild(recBtn);
     recBtn.onclick = function () {
       if (!monthInput.value.trim() || totalInput.value === '') { toast('请填写月份和收入'); return; }
-      var p = window.prompt('请输入管理口令：');
-      if (p == null) return;
+      if (!unlocked || !adminPassword) { toast('请先解锁管理面板'); return; }
       recBtn.disabled = true;
       recBtn.textContent = '结算中…';
-      api().creatorAdminRevenue({ password: String(p || ''), month: monthInput.value.trim(), total: Number(totalInput.value) })
+      api().creatorAdminRevenue({ password: adminPassword, month: monthInput.value.trim(), total: Number(totalInput.value) })
         .then(function (d) {
           recBtn.disabled = false;
           recBtn.textContent = '录入并结算';
           if (!d.ok) { toast(d.error || '结算失败'); return; }
           toast('结算完成：平台留 ' + d.record.platformCut + ' 元，创作者分 ' + d.record.creatorShare + ' 元');
-          var p2 = window.prompt('结算完成，重新加载面板（输入管理口令）：');
-          if (p2 == null) return;
-          api().creatorAdminOverview(String(p2 || '')).then(function (d2) {
+          api().creatorAdminOverview(adminPassword).then(function (d2) {
             if (d2.ok) renderOverview(d2);
             else toast(d2.error || '验证失败');
           }).catch(function () { toast('加载失败'); });
@@ -183,7 +224,7 @@
     }
     // 重新解锁按钮
     var relock = el('button', 'ma-btn', '重新验证口令');
-    relock.onclick = function () { unlocked = false; panelEl.innerHTML = ''; var c = el('button', 'ma-close', '×'); c.onclick = closePanel; panelEl.appendChild(c); panelEl.appendChild(el('h3', '', '创作者平台管理')); buildLockBlock(); };
+    relock.onclick = function () { unlocked = false; adminPassword = ''; panelEl.innerHTML = ''; var c = el('button', 'ma-close', '×'); c.onclick = closePanel; panelEl.appendChild(c); panelEl.appendChild(el('h3', '', '创作者平台管理')); buildLockBlock(); };
     panelEl.appendChild(relock);
   }
 
@@ -193,9 +234,8 @@
   }
 
   function audit(songId, approve) {
-    var p = window.prompt('请输入管理口令：');
-    if (p == null) return;
-    api().creatorAdminAudit({ password: String(p || ''), songId: songId, approve: approve })
+    if (!unlocked || !adminPassword) { toast('请先解锁管理面板'); return; }
+    api().creatorAdminAudit({ password: adminPassword, songId: songId, approve: approve })
       .then(function (d) {
         if (d.ok) { toast(approve ? '已通过上架' : '已拒绝'); reloadOverview(); }
         else toast(d.error || '操作失败');

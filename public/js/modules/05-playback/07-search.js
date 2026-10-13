@@ -717,7 +717,7 @@ function songRequiresVip(song) {
   return /vip_required|paid_required|trial_only|need_vip|only_vip|vip/i.test(text);
 }
 function songVipTagHtml(song) {
-  return songRequiresVip(song) ? '<span class="tag-vip">VIP</span>' : '';
+  return songRequiresVip(song) ? '<span class="tag-vip">平台VIP</span>' : '';
 }
 function searchResultMetaText(song) {
   var bits = [];

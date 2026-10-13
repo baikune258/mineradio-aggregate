@@ -32,6 +32,7 @@
       '#mineradio-settings-panel .mr-sub{color:#9aa3c7;font-size:12px;margin-bottom:16px}',
       '#mineradio-settings-panel .mr-sec{font-size:13px;font-weight:700;color:#cdd6ff;margin:16px 0 8px}',
       '#mineradio-settings-panel .mr-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px}',
+      '#mineradio-settings-panel .mr-row-inline{display:flex;align-items:center;gap:6px}',
       '#mineradio-settings-panel .mr-row .mr-label{flex:1}',
       '#mineradio-settings-panel .mr-btn{display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;color:#fff;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;margin:4px 6px 4px 0}',
       '#mineradio-settings-panel .mr-btn:hover{filter:brightness(1.1)}',
@@ -127,6 +128,68 @@
     container.appendChild(row('启动时自动播放', autoBtn));
   }
 
+  // ---------------- 歌词效果（动态效果自定义） ----------------
+
+  function buildLyricFxUi(container) {
+    container.appendChild(el('div', 'mr-sec', '歌词效果'));
+    container.appendChild(el('div', 'mr-dim', '自定义歌词显示与动态效果（与效果面板同步，即时生效并保存）'));
+    const fxToggles = [
+      ['desktopLyricsHighlight', '跟唱高亮（按播放进度）', function () { return fx.desktopLyricsHighlight === true; }],
+      ['lyricGlow', '歌词溢光', function () { return !!fx.lyricGlow; }],
+      ['lyricGlowBeat', '溢光随节拍', function () { return !!fx.lyricGlowBeat; }],
+      ['lyricGlowParticles', '溢光粒子', function () { return !!fx.lyricGlowParticles; }],
+      ['lyricVerticalFloat', '歌词纵向漂浮', function () { return fx.lyricVerticalFloat !== false; }],
+      ['lyricPauseHold', '暂停时保持歌词', function () { return fx.lyricPauseHold !== false; }],
+    ];
+    function saveLyricFx() {
+      if (typeof saveLyricLayout === 'function') saveLyricLayout({ syncDisk: true, user: true, reason: 'settingsLyricFx' });
+      if (typeof updateLyricColorControls === 'function') updateLyricColorControls();
+      if (typeof updateLyricHighlightControls === 'function') updateLyricHighlightControls();
+      if (typeof updateLyricGlowControls === 'function') updateLyricGlowControls();
+    }
+    fxToggles.forEach(function (item) {
+      const key = item[0];
+      const label = item[1];
+      const read = item[2];
+      const sw = el('button', 'mr-switch' + (read() ? ' on' : ''), read() ? '开' : '关');
+      sw.onclick = function () {
+        const next = !read();
+        if (key === 'desktopLyricsHighlight') fx.desktopLyricsHighlight = next;
+        else if (key === 'lyricVerticalFloat') fx.lyricVerticalFloat = next;
+        else if (key === 'lyricPauseHold') fx.lyricPauseHold = next;
+        else fx[key] = next;
+        sw.classList.toggle('on', next);
+        sw.textContent = next ? '开' : '关';
+        saveLyricFx();
+        toast(label + (next ? '已开启' : '已关闭'));
+      };
+      container.appendChild(row(label, sw));
+    });
+    // 颜色
+    const colorRow = row('歌词颜色', (function () {
+      const box = el('div', 'mr-row-inline');
+      const input = el('input'); input.type = 'color'; input.value = (fx.lyricColorMode === 'custom' && fx.lyricColor) || '#a9b8c8';
+      input.style.width = '34px'; input.style.height = '24px'; input.style.border = 'none'; input.style.background = 'none'; input.style.padding = '0'; input.style.cursor = 'pointer';
+      input.onchange = function () { if (typeof setLyricColorCustom === 'function') setLyricColorCustom(input.value); };
+      const autoBtn = el('button', 'mr-btn small ghost', '封面取色');
+      autoBtn.onclick = function () { if (typeof setLyricColorAuto === 'function') setLyricColorAuto(); };
+      box.appendChild(input); box.appendChild(autoBtn);
+      return box;
+    })());
+    container.appendChild(colorRow);
+    const hlRow = row('跟唱高亮色', (function () {
+      const box = el('div', 'mr-row-inline');
+      const input = el('input'); input.type = 'color'; input.value = fx.lyricHighlightColor || '#fff0b8';
+      input.style.width = '34px'; input.style.height = '24px'; input.style.border = 'none'; input.style.background = 'none'; input.style.padding = '0'; input.style.cursor = 'pointer';
+      input.onchange = function () { if (typeof setLyricHighlightCustom === 'function') setLyricHighlightCustom(input.value); };
+      const autoBtn = el('button', 'mr-btn small ghost', '跟随歌词');
+      autoBtn.onclick = function () { if (typeof setLyricHighlightAuto === 'function') setLyricHighlightAuto(); };
+      box.appendChild(input); box.appendChild(autoBtn);
+      return box;
+    })());
+    container.appendChild(hlRow);
+  }
+
   // ---------------- 数据管理 / 缓存 ----------------
 
   function buildDataCacheUi(container) {
@@ -187,6 +250,46 @@
     container.appendChild(el('div', 'mr-dim', '注册登录后可管理个人歌单、收藏、收听记录；会员激活时绑定账号，换设备不丢。'));
   }
 
+  // ---------------- 检查更新 ----------------
+
+  function buildUpdateEntry(container) {
+    container.appendChild(el('div', 'mr-sec', '检查更新'));
+    const statusLine = el('div', 'mr-dim', '点击检查是否有新版本可下载安装');
+    const btn = el('button', 'mr-btn small ghost', '检查更新');
+    btn.onclick = function () {
+      const dw = window.desktopWindow || {};
+      if (typeof dw.checkUpdate !== 'function') { toast('检查更新仅桌面版可用'); return; }
+      statusLine.textContent = '正在检查…';
+      dw.checkUpdate().then(function (res) {
+        if (res && res.ok) return;
+        statusLine.textContent = (res && res.error) || '检查失败';
+      });
+      if (typeof dw.onUpdateStatus === 'function') {
+        dw.onUpdateStatus(function (s) {
+          if (!s) return;
+          if (s.state === 'checking') statusLine.textContent = '正在检查…';
+          else if (s.state === 'available') {
+            statusLine.textContent = '发现新版本 v' + s.version + '，正在后台下载…';
+            const dl = el('button', 'mr-btn small ghost', '下载并安装');
+            dl.onclick = function () { dw.downloadUpdate(); };
+            statusLine.appendChild(dl);
+          }
+          else if (s.state === 'downloading') statusLine.textContent = '下载中 ' + (s.percent || 0).toFixed(0) + '%';
+          else if (s.state === 'downloaded') {
+            statusLine.textContent = '新版本 v' + s.version + ' 已下载，正在自动重启生效…';
+            const inst = el('button', 'mr-btn small ghost', '立即重启');
+            inst.onclick = function () { dw.installUpdate(); };
+            statusLine.appendChild(inst);
+          }
+          else if (s.state === 'none') statusLine.textContent = '已是最新版本';
+          else if (s.state === 'error') statusLine.textContent = '检查更新失败：' + (s.message || '网络异常');
+        });
+      }
+    };
+    container.appendChild(btn);
+    container.appendChild(statusLine);
+  }
+
   // ---------------- 打开面板 ----------------
 
   function openSettingsPanel() {
@@ -210,8 +313,10 @@
     document.body.appendChild(panel);
 
     buildPlaybackUi(body);
+    buildLyricFxUi(body);
     buildDataCacheUi(body);
     buildAccountEntry(body);
+    buildUpdateEntry(body);
   }
 
   window.openSettingsPanel = openSettingsPanel;

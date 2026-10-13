@@ -21,6 +21,8 @@ class ListenerSystem {
     this.dataDir = options.dataDir || defaultListenerDataDir();
     this.accountsFile = path.join(this.dataDir, 'accounts.json');
     this.sessionsFile = path.join(this.dataDir, 'sessions.json');
+    this.ordersFile = path.join(this.dataDir, 'orders.json');
+    this.adminPassword = options.adminPassword || 'mineradio-admin';
     this._ensure();
   }
 
@@ -28,6 +30,7 @@ class ListenerSystem {
     fs.mkdirSync(this.dataDir, { recursive: true });
     if (!fs.existsSync(this.accountsFile)) fs.writeFileSync(this.accountsFile, JSON.stringify({ accounts: [] }, null, 2), 'utf8');
     if (!fs.existsSync(this.sessionsFile)) fs.writeFileSync(this.sessionsFile, JSON.stringify({ sessions: {} }, null, 2), 'utf8');
+    if (!fs.existsSync(this.ordersFile)) fs.writeFileSync(this.ordersFile, JSON.stringify({ orders: [] }, null, 2), 'utf8');
   }
 
   _read(file, fallback) {
@@ -47,6 +50,8 @@ class ListenerSystem {
   _saveAccounts(data) { this._write(this.accountsFile, data); }
   _sessions() { return this._read(this.sessionsFile, { sessions: {} }); }
   _saveSessions(data) { this._write(this.sessionsFile, data); }
+  _orders() { return this._read(this.ordersFile, { orders: [] }); }
+  _saveOrders(data) { this._write(this.ordersFile, data); }
 
   // ---------- 账号 ----------
 
@@ -148,6 +153,70 @@ class ListenerSystem {
     rec.memberUntil = Math.max(rec.memberUntil || 0, t);
     this._saveAccounts(store);
     return { ok: true, account: this._publicAccount(rec) };
+  }
+
+  // ---------- 会员订单（付费购买，管理员核销开通） ----------
+
+  static ORDER_PLANS() {
+    return {
+      month: { label: '1 个月', days: 30, amount: 8 },
+      quarter: { label: '3 个月', days: 90, amount: 22 },
+      year: { label: '12 个月', days: 365, amount: 68 },
+    };
+  }
+
+  createOrder(token, planKey) {
+    const account = this.resolveSession(token);
+    if (!account) return { ok: false, error: '请先登录' };
+    const plan = ListenerSystem.ORDER_PLANS()[String(planKey || '')];
+    if (!plan) return { ok: false, error: '套餐不存在' };
+    const store = this._orders();
+    const id = 'MR-O' + Date.now().toString(36).toUpperCase() + crypto.randomBytes(3).toString('hex').toUpperCase();
+    const order = {
+      id, accountId: account.id, accountName: account.name,
+      plan: String(planKey), days: plan.days, amount: plan.amount,
+      status: 'pending', createdAt: Date.now(),
+    };
+    store.orders.push(order);
+    this._saveOrders(store);
+    return { ok: true, order };
+  }
+
+  listMyOrders(token) {
+    const account = this.resolveSession(token);
+    if (!account) return { ok: false, error: '请先登录' };
+    const mine = this._orders().orders
+      .filter(o => o.accountId === account.id)
+      .sort((a, b) => b.createdAt - a.createdAt);
+    return { ok: true, orders: mine };
+  }
+
+  approveOrder(password, orderId) {
+    if (String(password || '') !== String(this.adminPassword || 'mineradio-admin')) {
+      return { ok: false, error: '管理口令不正确' };
+    }
+    const store = this._orders();
+    const order = store.orders.find(o => o.id === orderId && o.status === 'pending');
+    if (!order) return { ok: false, error: '订单不存在或已处理' };
+    const accStore = this._accounts();
+    const rec = accStore.accounts.find(a => a.id === order.accountId);
+    if (!rec) return { ok: false, error: '账号不存在' };
+    rec.memberUntil = Math.max(rec.memberUntil || 0, Date.now()) + (order.days || 30) * 86400000;
+    this._saveAccounts(accStore);
+    order.status = 'done';
+    order.approvedAt = Date.now();
+    this._saveOrders(store);
+    return { ok: true, account: this._publicAccount(rec), order };
+  }
+
+  listPendingOrders(password) {
+    if (String(password || '') !== String(this.adminPassword || 'mineradio-admin')) {
+      return { ok: false, error: '管理口令不正确' };
+    }
+    const pending = this._orders().orders
+      .filter(o => o.status === 'pending')
+      .sort((a, b) => b.createdAt - a.createdAt);
+    return { ok: true, orders: pending };
   }
 
   // ---------- 歌单 ----------
