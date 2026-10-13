@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, screen, session, globalShortcut, dialog, Tray, Menu, protocol, desktopCapturer, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, screen, session, globalShortcut, dialog, Tray, Menu, protocol, desktopCapturer, powerMonitor, clipboard } = require('electron');
 const net = require('net');
 const http = require('http');
 const path = require('path');
@@ -843,7 +843,13 @@ function setupAutoUpdater() {
     autoUpdater.on('update-available', (info) => pushUpdateStatus({ state: 'available', version: info && info.version || '' }));
     autoUpdater.on('update-not-available', () => pushUpdateStatus({ state: 'none' }));
     autoUpdater.on('download-progress', (p) => pushUpdateStatus({ state: 'downloading', percent: Number(p && p.percent) || 0 }));
-    autoUpdater.on('update-downloaded', (info) => pushUpdateStatus({ state: 'downloaded', version: info && info.version || '' }));
+    autoUpdater.on('update-downloaded', (info) => {
+      pushUpdateStatus({ state: 'downloaded', version: info && info.version || '' });
+      // 二改：下载完成 3 秒后自动静默重启生效（不弹安装向导）
+      setTimeout(() => {
+        try { autoUpdater.quitAndInstall(true, true); } catch (e) { console.warn('[Updater] auto install failed:', e && e.message || e); }
+      }, 3000);
+    });
     autoUpdater.on('error', (err) => pushUpdateStatus({ state: 'error', message: err && err.message || String(err) }));
   } catch (error) { console.warn('[Updater] events failed:', error && error.message || error); }
 
@@ -863,7 +869,7 @@ function setupAutoUpdater() {
   ipcMain.handle('mineradio-install-update', async (event) => {
     if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
     if (!autoUpdater) return { ok: false, error: '更新服务不可用' };
-    try { autoUpdater.quitAndInstall(false, true); return { ok: true }; }
+    try { autoUpdater.quitAndInstall(true, true); return { ok: true }; } // 静默安装并自动重启，不再弹安装向导
     catch (e) { return { ok: false, error: e.message }; }
   });
 }
@@ -4756,6 +4762,15 @@ ipcMain.handle('mineradio-listener-login', listenerIpc((ls, payload = {}) => ls.
 ipcMain.handle('mineradio-listener-logout', listenerIpc((ls, payload = {}) => ls.logout(payload.token)));
 ipcMain.handle('mineradio-listener-status', listenerIpc((ls, payload = {}) => ls.status(payload.token)));
 ipcMain.handle('mineradio-listener-member-bind', listenerIpc((ls, payload = {}) => ls.bindMember(payload.token, payload.expireAt)));
+ipcMain.handle('mineradio-listener-create-order', listenerIpc((ls, payload = {}) => ls.createOrder(payload.token, payload.plan)));
+ipcMain.handle('mineradio-listener-my-orders', listenerIpc((ls, payload = {}) => ls.listMyOrders(payload.token)));
+ipcMain.handle('mineradio-listener-pending-orders', listenerIpc((ls, payload = {}) => ls.listPendingOrders(payload.password)));
+ipcMain.handle('mineradio-listener-approve-order', listenerIpc((ls, payload = {}) => ls.approveOrder(payload.password, payload.orderId)));
+ipcMain.handle('mineradio-clipboard-write', (event, text) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+  try { clipboard.writeText(String(text || '')); return { ok: true }; }
+  catch (e) { return { ok: false, error: e && e.message || String(e) }; }
+});
 ipcMain.handle('mineradio-listener-add-playlist', listenerIpc((ls, payload = {}) => ls.addPlaylist(payload.token, payload.name)));
 ipcMain.handle('mineradio-listener-rename-playlist', listenerIpc((ls, payload = {}) => ls.renamePlaylist(payload.token, payload.playlistId, payload.name)));
 ipcMain.handle('mineradio-listener-delete-playlist', listenerIpc((ls, payload = {}) => ls.deletePlaylist(payload.token, payload.playlistId)));
@@ -4800,9 +4815,10 @@ ipcMain.handle('mineradio-clear-cache', async (event) => {
   try {
     const root = cacheSettings && cacheSettings.rootPath || defaultCacheRootPath();
     if (root && root !== STABLE_USER_DATA_PATH && root !== '/') {
-      ['lyrics', 'chromium', 'beatmaps', 'native-helper-temp'].forEach(function (sub) {
-        const dir = path.join(root, sub);
-        try { if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+      const entries = fs.readdirSync(root);
+      entries.forEach(function (name) {
+        const p = path.join(root, name);
+        try { fs.rmSync(p, { recursive: true, force: true }); } catch (_) {}
       });
     }
     return { ok: true };

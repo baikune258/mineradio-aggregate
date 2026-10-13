@@ -215,7 +215,7 @@
     return arr;
   }
   function playHotSearchFallback() {
-    return fetchDailyHotFreeSongs([], 5).then(function (fresh) {
+    return fetchDailyHotFreeSongs([], 12).then(function (fresh) {
       if (!fresh || !fresh.length) return undefined;
       var queue = fresh.map(function (s) {
         return {
@@ -243,7 +243,7 @@
         q.forEach(function (s) { if (s && s.id) existing[String(s.id)] = true; });
       } catch (_) {}
     })();
-    return fetchDailyHotFreeSongs(existing, 5).then(function (fresh) {
+    return fetchDailyHotFreeSongs(existing, 12).then(function (fresh) {
       if (!fresh || !fresh.length) return 0;
       var newSongs = fresh.map(function (s) {
         return {
@@ -268,7 +268,7 @@
   }
 
   // 公共：按日期轮换关键词搜索免费歌（排除指定 id 集合），返回打乱后的新歌列表
-  function fetchDailyHotFreeSongs(excludeIds, limit) {
+  function fetchDailyHotFreeSongs(excludeIds, limit, _retry) {
     var seed = dailySeed();
     var keywords = pickDailyKeywords(seed.hash);
     var played = dailyPlayedIds();
@@ -300,11 +300,12 @@
     });
     return chain.then(function () {
       if (!collected.length) {
-        // 当天全听过了：清空当日记录，保证一定有新歌
+        // 当天全听过了：清空当日记录并重新搜索一次，保证续播不中断
         try { localStorage.removeItem(DAY_KEY); } catch (_) {}
-        return [];
+        if (_retry) return []; // 重搜仍无结果时直接返回，避免无限递归
+        return fetchDailyHotFreeSongs([], limit || 12, true);
       }
-      var fresh = shuffled(collected, seed.hash).slice(0, limit || 5);
+      var fresh = shuffled(collected, seed.hash).slice(0, limit || 12);
       rememberDailyPlayed(played.concat(fresh.map(function (s) { return String(s.id); })));
       return fresh;
     });
