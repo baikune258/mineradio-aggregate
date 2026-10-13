@@ -30,6 +30,7 @@
       "build/**/*",
       "cuefield/**/*",
       "server.js",
+      "creator-platform.js",
       "*-api.js",
       "qishui-auth-v6.js",
       "qishui-qr-login.js",
