@@ -1006,6 +1006,52 @@ async function fetchLatestYmlUpdateInfo(reason) {
   const result = await fetchTextFromCandidates(candidates, 6500);
   return parseLatestYmlUpdateInfo(result.text, reason);
 }
+// jsDelivr 国内可达镜像：GitHub API/文件被墙时仍能取到仓库最新 package.json 版本号
+async function fetchJsDelivrVersionInfo(reason) {
+  if (!UPDATE_CONFIG.configured || UPDATE_CONFIG.provider !== 'github') throw updateError('UPDATE_REPOSITORY_NOT_CONFIGURED');
+  const mirrorUrl = `https://cdn.jsdelivr.net/gh/${encodeURIComponent(UPDATE_CONFIG.owner)}/${encodeURIComponent(UPDATE_CONFIG.repo)}@main/package.json`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 7000);
+  try {
+    const resp = await fetch(mirrorUrl, { signal: controller.signal, headers: { 'User-Agent': 'Mineradio/' + APP_VERSION } });
+    if (!resp.ok) throw updateError('MIRROR_HTTP_' + resp.status);
+    const data = await resp.json();
+    const mirrorVersion = normalizeVersion(data && data.version || '') || '';
+    if (!mirrorVersion) throw updateError('MIRROR_VERSION_EMPTY');
+    const downloadPageUrl = `https://github.com/${encodeURIComponent(UPDATE_CONFIG.owner)}/${encodeURIComponent(UPDATE_CONFIG.repo)}/releases/tag/v${mirrorVersion}`;
+    const directDownloadUrl = `https://github.com/${encodeURIComponent(UPDATE_CONFIG.owner)}/${encodeURIComponent(UPDATE_CONFIG.repo)}/releases/download/v${mirrorVersion}/Mineradio-${mirrorVersion}-Setup.exe`;
+    return {
+      configured: true,
+      preview: false,
+      updateAvailable: compareVersions(mirrorVersion, APP_VERSION) > 0,
+      currentVersion: APP_VERSION,
+      latestVersion: mirrorVersion,
+      release: {
+        tagName: 'v' + mirrorVersion,
+        name: 'Mineradio v' + mirrorVersion,
+        version: mirrorVersion,
+        publishedAt: '',
+        htmlUrl: downloadPageUrl,
+        externalUrl: directDownloadUrl,
+        downloadPageUrl,
+        downloadPages: [
+          { label: 'GitHub 直链', url: directDownloadUrl },
+          { label: 'GitHub 发布页', url: downloadPageUrl },
+        ],
+        downloadUrl: directDownloadUrl,
+        asset: null,
+        patch: null,
+        patchAvailable: false,
+        summary: '发现新版本 v' + mirrorVersion + '，建议更新。',
+        notes: ['发现新版本 v' + mirrorVersion + '，建议更新。', '（版本信息来自国内镜像，下载走 GitHub 直链）'],
+      },
+    };
+  } catch (err) {
+    throw updateError((err && err.code) || 'MIRROR_CHECK_FAILED', (err && err.message) || reason, err);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 async function fetchLatestUpdateInfo() {
   if (UPDATE_CONFIG.manifest) return fetchManifestUpdateInfo(UPDATE_CONFIG.manifest);
   if (!UPDATE_CONFIG.configured || UPDATE_CONFIG.provider !== 'github') return localUpdateFallback();
@@ -1022,7 +1068,10 @@ async function fetchLatestUpdateInfo() {
     });
     if (!resp.ok) {
       try { return await fetchLatestYmlUpdateInfo('GitHub Releases ' + resp.status); }
-      catch (_) { return localUpdateFallback('GitHub Releases ' + resp.status, { configured: true }); }
+      catch (_) {
+        try { return await fetchJsDelivrVersionInfo('GitHub Releases ' + resp.status); }
+        catch (_) { return localUpdateFallback('GitHub Releases ' + resp.status, { configured: true }); }
+      }
     }
     const data = await resp.json();
     const latestVersion = normalizeVersion(data.tag_name || data.name || APP_VERSION) || APP_VERSION;
@@ -1057,7 +1106,10 @@ async function fetchLatestUpdateInfo() {
   } catch (err) {
     const reason = err && err.message || 'Update check failed';
     try { return await fetchLatestYmlUpdateInfo(reason); }
-    catch (fallbackErr) { return localUpdateFallback((fallbackErr && fallbackErr.message) || reason, { configured: true }); }
+    catch (fallbackErr) {
+      try { return await fetchJsDelivrVersionInfo((fallbackErr && fallbackErr.message) || reason); }
+      catch (_) { return localUpdateFallback((fallbackErr && fallbackErr.message) || reason, { configured: true }); }
+    }
   } finally {
     clearTimeout(timer);
   }
