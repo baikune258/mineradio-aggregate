@@ -225,6 +225,8 @@ function syncUpdatePreviewStateClass() {
     if (isOpening) label.textContent = '正在打开下载页';
     else if (isOpened) label.textContent = '下载页已打开';
     else if (isError) label.textContent = '重试打开';
+    else if (updatePreviewState.status === 'inapp') label.textContent = '正在下载 ' + (Number(updatePreviewState.inAppPercent) || 0) + '%';
+    else if (updatePreviewState.status === 'ready') label.textContent = '下载完成，即将重启';
     else if (!updatePreviewState.updateAvailable) label.textContent = '当前已是最新';
     else if (selectedPage) label.textContent = '前往' + selectedPage.label;
     else if (updatePreviewState.externalUrl) label.textContent = '前往网盘下载';
@@ -232,18 +234,20 @@ function syncUpdatePreviewStateClass() {
   }
   var btn = document.getElementById('update-primary-btn');
   if (btn) {
-    btn.disabled = isOpening || !updatePreviewState.updateAvailable || !updateUrl;
+    btn.disabled = isOpening || updatePreviewState.status === 'inapp' || updatePreviewState.status === 'ready' || !updatePreviewState.updateAvailable || !updateUrl;
   }
   var sourceButtons = document.querySelectorAll('#update-download-sources .update-download-source');
   Array.prototype.forEach.call(sourceButtons, function (sourceButton) {
     var index = Number(sourceButton.dataset.index || 0);
-    sourceButton.disabled = isOpening;
+    sourceButton.disabled = isOpening || updatePreviewState.status === 'inapp';
     sourceButton.classList.toggle('active', index === Number(updatePreviewState.selectedDownloadPageIndex || 0));
   });
   var foot = document.getElementById('update-footnote');
   if (foot) {
     if (isOpening) foot.textContent = '正在调用系统浏览器。';
     else if (isError) foot.textContent = '无法打开下载页：' + (updatePreviewState.errorReason || '请稍后重试');
+    else if (updatePreviewState.status === 'inapp') foot.textContent = '正在软件内下载新版，下载完成后将自动重启生效，无需手动操作。';
+    else if (updatePreviewState.status === 'ready') foot.textContent = '新版已下载完成，正在自动重启生效。';
     else if (!updatePreviewState.updateAvailable) foot.textContent = '当前版本已是最新。';
     else if (downloadPages.length || updatePreviewState.externalUrl) foot.textContent = '请使用本次公告中的最新网盘链接，旧收藏链接可能不是最新版。软件不会在本地下载或应用补丁。';
     else foot.textContent = '将在浏览器打开 GitHub 更新页面；软件不会在本地下载或应用补丁。';
@@ -321,6 +325,56 @@ function openUpdateDownloadSource(index) {
 
 async function startUpdatePreviewDownload(preferredIndex) {
   if (updatePreviewState.status === 'opening') return;
+  if (!updatePreviewState.updateAvailable) {
+    showToast('当前版本已是最新');
+    return;
+  }
+  // 桌面版：优先软件内下载并自动重启更新，不再跳浏览器
+  if (window.desktopWindow && typeof window.desktopWindow.downloadUpdate === 'function') {
+    updatePreviewState.status = 'inapp';
+    updatePreviewState.errorReason = '';
+    updatePreviewState.inAppPercent = 0;
+    syncUpdatePreviewStateClass();
+    try {
+      var res = await window.desktopWindow.downloadUpdate();
+      if (!res || res.ok === false) {
+        updatePreviewState.status = 'error';
+        updatePreviewState.errorReason = (res && res.error) || 'DOWNLOAD_UPDATE_FAILED';
+        syncUpdatePreviewStateClass();
+        showToast('软件内下载不可用，改为打开下载页');
+        return startUpdatePreviewDownloadBrowser(preferredIndex);
+      }
+      // 订阅下载进度；main.js 在下载完成后 3 秒自动静默重启
+      if (typeof window.desktopWindow.onUpdateStatus === 'function') {
+        window.desktopWindow.onUpdateStatus(function (s) {
+          if (!s) return;
+          if (s.state === 'downloading') {
+            updatePreviewState.inAppPercent = Number(s.percent) || 0;
+            syncUpdatePreviewStateClass();
+          } else if (s.state === 'downloaded') {
+            updatePreviewState.status = 'ready';
+            updatePreviewState.inAppPercent = 100;
+            syncUpdatePreviewStateClass();
+          } else if (s.state === 'error') {
+            updatePreviewState.status = 'error';
+            updatePreviewState.errorReason = s.message || 'DOWNLOAD_UPDATE_FAILED';
+            syncUpdatePreviewStateClass();
+          }
+        });
+      }
+      return;
+    } catch (e) {
+      updatePreviewState.status = 'error';
+      updatePreviewState.errorReason = (e && e.message) || 'DOWNLOAD_UPDATE_FAILED';
+      syncUpdatePreviewStateClass();
+      showToast('软件内下载失败，改为打开下载页');
+      return startUpdatePreviewDownloadBrowser(preferredIndex);
+    }
+  }
+  return startUpdatePreviewDownloadBrowser(preferredIndex);
+}
+
+async function startUpdatePreviewDownloadBrowser(preferredIndex) {
   if (!updatePreviewState.updateAvailable) {
     showToast('当前版本已是最新');
     return;
