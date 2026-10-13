@@ -72,6 +72,10 @@
       '.mr-btn.primary{background:linear-gradient(135deg,#6366f1,#8b5cf6);border-color:transparent}',
       '.mr-btn.danger{border-color:rgba(239,68,68,.5);color:#fca5a5}',
       '.mr-input{width:100%;box-sizing:border-box;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);border-radius:10px;color:#fff;padding:8px 10px;font-size:13px;margin:4px 0;font-family:inherit}',
+      '.mr-dropzone{border:2px dashed rgba(120,140,255,.45);border-radius:12px;padding:20px 12px;text-align:center;color:#9aa3c7;margin:8px 0;cursor:pointer;transition:all .2s;font-size:13px;background:rgba(255,255,255,.03)}',
+      '.mr-dropzone.over{border-color:#0ea5e9;background:rgba(14,165,233,.12);color:#e8ecff}',
+      '.mr-dropzone.done{border-style:solid;border-color:rgba(52,211,153,.55);color:#86efac;background:rgba(52,211,153,.08)}',
+      '.mr-dropzone + .mr-dim{font-size:12px;color:#86efac;margin:-2px 0 6px}',
       '.mr-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}',
       '.mr-card{background:rgba(255,255,255,.05);border-radius:12px;padding:10px 12px;margin:8px 0}',
       '.mr-badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:8px;margin-left:6px}',
@@ -199,14 +203,42 @@
     var coverInput = el('input', 'mr-input');
     coverInput.type = 'file';
     coverInput.accept = 'image/*';
+    // 音频：拖拽上传 / 点击选择（二改）
+    var droppedAudioFile = null;
+    var dropZone = el('div', 'mr-dropzone', '把音乐文件拖到这里即可上传，或点击选择文件');
+    var dropHint = el('div', 'mr-dim', '');
     var audioInput = el('input', 'mr-input');
     audioInput.type = 'file';
     audioInput.accept = 'audio/*';
+    audioInput.style.display = 'none';
+    dropZone.onclick = function () { audioInput.click(); };
+    audioInput.onchange = function () {
+      if (audioInput.files && audioInput.files[0]) {
+        droppedAudioFile = audioInput.files[0];
+        dropZone.className = 'mr-dropzone done';
+        dropHint.textContent = '已选择：' + droppedAudioFile.name;
+      }
+    };
+    dropZone.addEventListener('dragover', function (e) { e.preventDefault(); e.stopPropagation(); dropZone.className = 'mr-dropzone over'; });
+    dropZone.addEventListener('dragenter', function (e) { e.preventDefault(); e.stopPropagation(); dropZone.className = 'mr-dropzone over'; });
+    dropZone.addEventListener('dragleave', function () { dropZone.className = 'mr-dropzone' + (droppedAudioFile ? ' done' : ''); });
+    dropZone.addEventListener('drop', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f && /^audio\//.test(f.type || '')) {
+        droppedAudioFile = f;
+        dropZone.className = 'mr-dropzone done';
+        dropHint.textContent = '已选择：' + f.name;
+        toast('已载入音频：' + f.name);
+      } else { toast('请拖入音频文件（mp3 / flac / wav 等）'); }
+    });
     root.appendChild(titleInput);
     root.appendChild(artistInput);
     root.appendChild(lyricInput);
     root.appendChild(pricingRow);
     root.appendChild(coverInput);
+    root.appendChild(dropZone);
+    root.appendChild(dropHint);
     root.appendChild(audioInput);
     var uploadBtn = el('button', 'mr-btn primary', '提交上传（待审核）');
     var autoApproveBox = el('label', 'mr-dim');
@@ -214,8 +246,8 @@
     root.appendChild(autoApproveBox);
     root.appendChild(uploadBtn);
     uploadBtn.onclick = function () {
-      var audioFile = audioInput.files && audioInput.files[0];
-      if (!audioFile) { toast('请选择音频文件'); return; }
+      var audioFile = droppedAudioFile || (audioInput.files && audioInput.files[0]);
+      if (!audioFile) { toast('请拖入或选择音频文件'); return; }
       if (!titleInput.value.trim()) { toast('请填写歌曲名'); return; }
       uploadBtn.disabled = true;
       uploadBtn.textContent = '上传中…';

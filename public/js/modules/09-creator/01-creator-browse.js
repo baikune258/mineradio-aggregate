@@ -232,7 +232,10 @@
   }
 
   // 无限续播：队列末尾自动追加一批新的每日推荐免费歌（去重：当日已播 + 队列已有）
+  var appendBusy = false;
   function appendDailyHotSongs() {
+    if (appendBusy) return Promise.resolve(0);
+    appendBusy = true;
     var existing = {};
     (function () {
       try {
@@ -261,7 +264,7 @@
         }
       } catch (_) {}
       return 0;
-    });
+    }).finally(function () { appendBusy = false; });
   }
 
   // 公共：按日期轮换关键词搜索免费歌（排除指定 id 集合），返回打乱后的新歌列表
@@ -270,7 +273,11 @@
     var keywords = pickDailyKeywords(seed.hash);
     var played = dailyPlayedIds();
     var exclude = {};
-    (Array.isArray(excludeIds) ? excludeIds : []).forEach(function (id) { if (id) exclude[String(id)] = true; });
+    if (Array.isArray(excludeIds)) {
+      excludeIds.forEach(function (id) { if (id) exclude[String(id)] = true; });
+    } else if (excludeIds && typeof excludeIds === 'object') {
+      Object.keys(excludeIds).forEach(function (k) { if (excludeIds[k]) exclude[k] = true; });
+    }
     var collected = [];
     var chain = Promise.resolve();
     keywords.forEach(function (kw) {
