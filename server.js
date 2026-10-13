@@ -6914,18 +6914,23 @@ const server = http.createServer(async (req, res) => {
       const fail = (err) => {
         if (finished) return;
         finished = true;
+        clearTimeout(idleTimer);
         try { if (current && current.ws) current.ws.destroy(); } catch (_) {}
         resolve({ error: err });
       };
+      let lastProgress = Date.now();
+      const idleTimer = setTimeout(() => fail(new Error('上传超时，请重试')), 150000);
       req.on('error', fail);
       req.on('aborted', () => fail(new Error('上传被中断')));
       req.on('data', chunk => {
         if (finished) return;
+        lastProgress = Date.now();
         buf = Buffer.concat([buf, chunk]);
         processBuf();
       });
       req.on('end', () => {
         if (finished) return;
+        clearTimeout(idleTimer);
         finished = true;
         try { if (current && current.ws) current.ws.end(); } catch (_) {}
         resolve({ fields, files });
@@ -6955,6 +6960,7 @@ const server = http.createServer(async (req, res) => {
             if (name && filename) {
               const tempPath = path.join(tmpDir, 'up-' + Date.now().toString(36) + '-' + cryptoRandomName());
               current = { name, filename, ws: fs.createWriteStream(tempPath), tempPath, size: 0 };
+              current.ws.on('error', (e) => fail(new Error('磁盘写入失败: ' + (e && e.code ? e.code : '未知错误'))));
               files[name] = { filename, tempPath, size: 0 };
             } else {
               current = { name, fieldBuf: Buffer.alloc(0) };
@@ -7163,7 +7169,7 @@ const server = http.createServer(async (req, res) => {
       const MAX_AUDIO_BYTES = 500 * 1024 * 1024;
       if (audio.size > MAX_AUDIO_BYTES) {
         try { fs.unlinkSync(audio.tempPath); } catch (_) {}
-        sendJSON(res, { ok: false, error: '音频超过 300MB 限制' }, 400);
+        sendJSON(res, { ok: false, error: '音频超过 500MB 限制' }, 400);
         return;
       }
       const autoApprove = !!parsed.fields.autoApproveToken

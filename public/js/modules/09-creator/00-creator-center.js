@@ -7,6 +7,7 @@
 
   var panelEl = null;
   var overlayEl = null;
+  var creatorAdminPwd = ''; // 免审管理口令（输过一次后本会话不再询问）
 
   function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (_) { return ''; } }
   function getCreatorName() { try { return localStorage.getItem(NAME_KEY) || ''; } catch (_) { return ''; } }
@@ -263,37 +264,45 @@
         if (autoToken) fd.append('autoApproveToken', autoToken);
         fd.append('audio', audioFile);
         if (coverInput.files && coverInput.files[0]) fd.append('cover', coverInput.files[0]);
-        fetch(API + '/upload', { method: 'POST', body: fd })
-          .then(function (r) { return r.json(); })
+        var ctrl = new AbortController();
+        var timer = setTimeout(function () { ctrl.abort(); }, 120000);
+        fetch(API + '/upload', { method: 'POST', body: fd, signal: ctrl.signal })
+          .then(function (r) { clearTimeout(timer); return r.json(); })
           .then(function (d) {
             uploadBtn.disabled = false;
             uploadBtn.textContent = '提交上传（待审核）';
             if (d.ok) { toast(d.song && d.song.status === 'approved' ? '上传成功，已直接上架' : '上传成功，等待平台审核'); refreshCenter(); }
             else toast(d.error || '上传失败');
           })
-          .catch(function () {
+          .catch(function (e) {
+            clearTimeout(timer);
             uploadBtn.disabled = false;
             uploadBtn.textContent = '提交上传（待审核）';
-            toast('上传失败，请重试');
+            toast((e && e.name === 'AbortError') ? '上传超时，请重试或换小一点的音频' : '上传失败，请重试');
           });
       }
       if (wantAuto) {
-        var p = window.prompt('请输入管理口令（平台方免审）：');
-        if (p == null) { uploadBtn.disabled = false; uploadBtn.textContent = '提交上传（待审核）'; return; }
+        var pwd = creatorAdminPwd;
+        if (!pwd) {
+          pwd = window.prompt('请输入管理口令（平台方免审）：');
+          if (pwd == null) { uploadBtn.disabled = false; uploadBtn.textContent = '提交上传（待审核）'; return; }
+          pwd = String(pwd || '');
+        }
         var dw = window.desktopWindow || {};
         var approveReq = (typeof dw.creatorAutoApproveToken === 'function')
-          ? dw.creatorAutoApproveToken(String(p || ''))
+          ? dw.creatorAutoApproveToken(pwd)
           : fetch(API + '/autoapprove-token', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ password: String(p || '') }),
+              body: JSON.stringify({ password: pwd }),
             }).then(function (r) { return r.json(); });
-        approveReq
+        var timeout = new Promise(function (_, reject) { setTimeout(function () { reject(new Error('timeout')); }, 15000); });
+        Promise.race([approveReq, timeout])
           .then(function (r) {
-            if (r && r.ok) { doUpload(r.token); }
-            else { toast((r && r.error) || '管理口令不正确'); uploadBtn.disabled = false; uploadBtn.textContent = '提交上传（待审核）'; }
+            if (r && r.ok) { creatorAdminPwd = pwd; doUpload(r.token); }
+            else { toast((r && r.error) || '管理口令不正确'); creatorAdminPwd = ''; uploadBtn.disabled = false; uploadBtn.textContent = '提交上传（待审核）'; }
           })
-          .catch(function () { toast('免审验证失败'); uploadBtn.disabled = false; uploadBtn.textContent = '提交上传（待审核）'; });
+          .catch(function () { toast('免审验证超时，请重试'); creatorAdminPwd = ''; uploadBtn.disabled = false; uploadBtn.textContent = '提交上传（待审核）'; });
         return;
       }
       doUpload(null);
