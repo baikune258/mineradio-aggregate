@@ -328,13 +328,23 @@
   window.closeMineradioMemberPanel = closePanel;
 
   function mountEntryButton() {
-    if (document.getElementById('mineradio-member-entry')) return;
-    const entry = document.createElement('button');
-    entry.id = 'mineradio-member-entry';
-    entry.textContent = '会员';
-    entry.style.cssText = 'position:fixed;right:18px;bottom:104px;z-index:99997;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:12px;cursor:pointer;opacity:.88;box-shadow:0 4px 14px rgba(99,102,241,.35);font-family:inherit';
-    entry.onclick = function () { openMineradioMemberPanel(); };
-    document.body.appendChild(entry);
+    if (document.getElementById('mineradio-entry-bar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'mineradio-entry-bar';
+    bar.style.cssText = 'position:fixed;right:18px;bottom:104px;z-index:99996;display:flex;gap:8px;align-items:center;font-family:inherit';
+    function mkBtn(id, text, grad, onClick) {
+      const b = document.createElement('button');
+      b.id = id;
+      b.textContent = text;
+      b.style.cssText = 'background:' + grad + ';color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:12px;cursor:pointer;opacity:.88;box-shadow:0 4px 14px rgba(0,0,0,.28);font-family:inherit';
+      b.onclick = onClick;
+      return b;
+    }
+    bar.appendChild(mkBtn('mineradio-member-entry', '会员', 'linear-gradient(135deg,#6366f1,#8b5cf6)', function () { window.openMineradioMemberPanel(); }));
+    bar.appendChild(mkBtn('mineradio-creator-entry', '创作者', 'linear-gradient(135deg,#0ea5e9,#22d3ee)', function () { window.openCreatorCenter(); }));
+    bar.appendChild(mkBtn('mineradio-creator-browse-entry', '专区', 'linear-gradient(135deg,#f59e0b,#f97316)', function () { window.openCreatorBrowse(); }));
+    bar.appendChild(mkBtn('mineradio-admin-entry', '平台管理', 'linear-gradient(135deg,#334155,#475569)', function () { window.openCreatorAdmin(); }));
+    document.body.appendChild(bar);
   }
 
   if (document.body) mountEntryButton();

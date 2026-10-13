@@ -127,6 +127,7 @@ const {
   readCuefieldFeedbackStats,
 } = require('./cuefield/feedback-log');
 const { planCuefieldTransitionFromCache } = require('./cuefield/mineradio-bridge');
+const { CreatorPlatform } = require('./creator-platform');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -6868,6 +6869,248 @@ const server = http.createServer(async (req, res) => {
         res.end();
       }
     }
+    return;
+  }
+
+  // ---------- 创作者平台（二改新增，数据跟随安装目录） ----------
+  const creatorPlatform = (() => {
+    try {
+      const { CreatorPlatform: CP } = require('./creator-platform');
+      return new CP();
+    } catch (error) {
+      console.warn('[Creator] 创作者平台初始化失败:', error.message);
+      return null;
+    }
+  })();
+
+  // 流式 multipart 解析：大文件不整包进内存
+  function multipartParse(req, boundary, tmpDir) {
+    return new Promise(resolve => {
+      const fields = {};
+      const files = {};
+      const marker = Buffer.from('--' + boundary);
+      let buf = Buffer.alloc(0);
+      let current = null;
+      let finished = false;
+      const fail = (err) => {
+        if (finished) return;
+        finished = true;
+        try { if (current && current.ws) current.ws.destroy(); } catch (_) {}
+        resolve({ error: err });
+      };
+      req.on('error', fail);
+      req.on('aborted', () => fail(new Error('上传被中断')));
+      req.on('data', chunk => {
+        if (finished) return;
+        buf = Buffer.concat([buf, chunk]);
+        processBuf();
+      });
+      req.on('end', () => {
+        if (finished) return;
+        finished = true;
+        try { if (current && current.ws) current.ws.end(); } catch (_) {}
+        resolve({ fields, files });
+      });
+      function processBuf() {
+        while (true) {
+          if (finished) return;
+          if (!current) {
+            const idx = buf.indexOf(marker);
+            if (idx === -1) {
+              if (buf.length > marker.length + 8) buf = buf.slice(Math.max(0, buf.length - marker.length - 4));
+              return;
+            }
+            let pos = idx + marker.length;
+            if (buf[pos] === 0x2D && buf[pos + 1] === 0x2D) { finished = true; resolve({ fields, files }); return; }
+            if (buf[pos] === 0x0D && buf[pos + 1] === 0x0A) pos += 2;
+            const hEnd = buf.indexOf('\r\n\r\n', pos);
+            if (hEnd === -1) {
+              if (buf.length - pos > 65536) return fail(new Error('上传字段头过大'));
+              return;
+            }
+            const headerText = buf.slice(pos, hEnd).toString('utf8');
+            buf = buf.slice(hEnd + 4);
+            const disp = /Content-Disposition:\s*form-data;\s*name="([^"]+)"(?:;\s*filename="([^"]*)")?/i.exec(headerText);
+            const name = disp ? disp[1] : '';
+            const filename = disp ? disp[2] : '';
+            if (name && filename) {
+              const tempPath = path.join(tmpDir, 'up-' + Date.now().toString(36) + '-' + cryptoRandomName());
+              current = { name, filename, ws: fs.createWriteStream(tempPath), tempPath, size: 0 };
+              files[name] = { filename, tempPath, size: 0 };
+            } else {
+              current = { name, fieldBuf: Buffer.alloc(0) };
+            }
+            continue;
+          }
+          const nextMarker = buf.indexOf(marker);
+          if (nextMarker === -1) {
+            const keep = Math.min(marker.length, buf.length);
+            const contentEnd = buf.length - keep;
+            if (contentEnd > 0) {
+              const part = buf.slice(0, contentEnd);
+              if (current.ws) { current.ws.write(part); current.size += part.length; if (files[current.name]) files[current.name].size = current.size; }
+              else current.fieldBuf = Buffer.concat([current.fieldBuf, part]);
+              buf = buf.slice(contentEnd);
+            }
+            return;
+          }
+          let partEnd = nextMarker;
+          if (partEnd >= 2 && buf[partEnd - 2] === 0x0D && buf[partEnd - 1] === 0x0A) partEnd -= 2;
+          const part = buf.slice(0, partEnd);
+          if (current.ws) { current.ws.write(part); current.size += part.length; if (files[current.name]) files[current.name].size = current.size; }
+          else current.fieldBuf = Buffer.concat([current.fieldBuf, part]);
+          buf = buf.slice(nextMarker);
+          if (current.ws) { try { current.ws.end(); } catch (_) {} }
+          else if (current.fieldBuf) fields[current.name] = current.fieldBuf.toString('utf8');
+          current = null;
+        }
+      }
+    });
+  }
+
+  function cryptoRandomName() {
+    return require('crypto').randomBytes(6).toString('hex');
+  }
+
+  if (pn.indexOf('/api/creator/') === 0) {
+    if (!creatorPlatform) {
+      sendJSON(res, { ok: false, error: '创作者平台未初始化' }, 500);
+      return;
+    }
+    const ct = String(req.headers['content-type'] || '').toLowerCase();
+
+    if (pn === '/api/creator/register' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      const r = creatorPlatform.register(body.name, body.password);
+      sendJSON(res, r, r.ok ? 200 : 400);
+      return;
+    }
+
+    if (pn === '/api/creator/login' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      const r = creatorPlatform.login(body.name, body.password);
+      sendJSON(res, r, r.ok ? 200 : 400);
+      return;
+    }
+
+    if (pn === '/api/creator/me' && req.method === 'GET') {
+      const user = creatorPlatform.resolveToken(String(url.searchParams.get('token') || ''));
+      if (!user) { sendJSON(res, { ok: false, error: '登录已失效，请重新登录' }, 401); return; }
+      sendJSON(res, { ok: true, creator: creatorPlatform._publicCreator(user), songs: creatorPlatform.mySongs(user.id) });
+      return;
+    }
+
+    if (pn === '/api/creator/songs' && req.method === 'GET') {
+      sendJSON(res, { ok: true, songs: creatorPlatform.publicSongs() });
+      return;
+    }
+
+    if (pn === '/api/creator/play' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      const ok = creatorPlatform.recordPlay(String(body.songId || ''), !!body.isMember);
+      sendJSON(res, { ok: !!ok });
+      return;
+    }
+
+    if (pn === '/api/creator/upload' && req.method === 'POST') {
+      const bdMatch = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(ct);
+      if (!bdMatch) { sendJSON(res, { ok: false, error: '上传格式不正确' }, 400); return; }
+      const boundary = (bdMatch[1] || bdMatch[2] || '').trim();
+      const tmpDir = path.join(creatorPlatform.dataDir, 'tmp');
+      fs.mkdirSync(tmpDir, { recursive: true });
+      const parsed = await multipartParse(req, boundary, tmpDir);
+      if (parsed.error) { sendJSON(res, { ok: false, error: parsed.error.message || '上传失败' }, 400); return; }
+      const user = creatorPlatform.resolveToken(String(parsed.fields.token || ''));
+      if (!user) { sendJSON(res, { ok: false, error: '登录已失效，请重新登录' }, 401); return; }
+      const audio = parsed.files.audio;
+      if (!audio) { sendJSON(res, { ok: false, error: '请选择音频文件' }, 400); return; }
+      const extMatch = /\.([a-z0-9]+)$/i.exec(audio.filename || '');
+      const ext = extMatch ? extMatch[1].toLowerCase() : '';
+      const ALLOWED_AUDIO_EXT = ['mp3', 'flac', 'wav', 'm4a', 'ogg', 'aac'];
+      if (!ALLOWED_AUDIO_EXT.includes(ext)) {
+        try { fs.unlinkSync(audio.tempPath); } catch (_) {}
+        sendJSON(res, { ok: false, error: '音频格式仅支持 mp3 / flac / wav / m4a / ogg / aac' }, 400);
+        return;
+      }
+      const MAX_AUDIO_BYTES = 300 * 1024 * 1024;
+      if (audio.size > MAX_AUDIO_BYTES) {
+        try { fs.unlinkSync(audio.tempPath); } catch (_) {}
+        sendJSON(res, { ok: false, error: '音频超过 300MB 限制' }, 400);
+        return;
+      }
+      const created = creatorPlatform.createSong({
+        creatorId: user.id,
+        title: parsed.fields.title,
+        artist: parsed.fields.artist,
+        memberOnly: parsed.fields.memberOnly === '1' || parsed.fields.memberOnly === 'true',
+        lyricText: parsed.fields.lyricText,
+      });
+      if (!created.ok) {
+        try { fs.unlinkSync(audio.tempPath); } catch (_) {}
+        sendJSON(res, created, 400);
+        return;
+      }
+      const song = created.song;
+      const audioFile = song.id + '.' + ext;
+      fs.renameSync(audio.tempPath, path.join(creatorPlatform.filesDir, audioFile));
+      const songsStore = { file: path.join(creatorPlatform.dataDir, 'songs.json'), read: () => { try { return JSON.parse(fs.readFileSync(path.join(creatorPlatform.dataDir, 'songs.json'), 'utf8')); } catch (_) { return { songs: [] }; } } };
+      const sData = songsStore.read();
+      const rec = sData.songs.find(s => s.id === song.id);
+      if (rec) { rec.audioFile = audioFile; rec.audioSize = audio.size; rec.audioExt = ext; }
+      fs.writeFileSync(songsStore.file, JSON.stringify(sData, null, 2), 'utf8');
+      const cover = parsed.files.cover;
+      if (cover && cover.tempPath) {
+        const cExtMatch = /\.([a-z0-9]+)$/i.exec(cover.filename || '');
+        const cExt = cExtMatch ? cExtMatch[1].toLowerCase() : 'jpg';
+        const coverFile = song.id + '.' + (['jpg', 'jpeg', 'png', 'webp'].includes(cExt) ? cExt : 'jpg');
+        try {
+          fs.renameSync(cover.tempPath, path.join(creatorPlatform.coversDir, coverFile));
+          const sData2 = songsStore.read();
+          const rec2 = sData2.songs.find(s => s.id === song.id);
+          if (rec2) rec2.coverFile = coverFile;
+          fs.writeFileSync(songsStore.file, JSON.stringify(sData2, null, 2), 'utf8');
+        } catch (_) { try { fs.unlinkSync(cover.tempPath); } catch (_) {} }
+      }
+      const updated = creatorPlatform.getSong(song.id);
+      sendJSON(res, { ok: true, song: creatorPlatform._publicSong(updated) });
+      return;
+    }
+
+    // 音频流：已审核可播；未审核仅本人可播
+    const audioMatch = /^\/api\/creator\/audio\/([^/]+)$/.exec(pn);
+    if (audioMatch && req.method === 'GET') {
+      const song = creatorPlatform.getSong(decodeURIComponent(audioMatch[1]));
+      if (!song) { sendJSON(res, { ok: false, error: '作品不存在' }, 404); return; }
+      let allowed = song.status === 'approved';
+      if (!allowed) {
+        const user = creatorPlatform.resolveToken(String(url.searchParams.get('token') || ''));
+        allowed = !!user && user.id === song.creatorId;
+      }
+      if (!allowed) { sendJSON(res, { ok: false, error: '作品尚未审核通过' }, 403); return; }
+      const audioPath = creatorPlatform.audioPath(song);
+      if (!audioPath) { sendJSON(res, { ok: false, error: '音频文件丢失' }, 404); return; }
+      res.writeHead(200, {
+        'Content-Type': audioContentTypeForUrl('file.' + (song.audioExt || 'mp3'), { headers: {} }),
+        'Content-Length': fs.statSync(audioPath).size,
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'no-store',
+      });
+      fs.createReadStream(audioPath).pipe(res);
+      return;
+    }
+
+    const coverMatch = /^\/api\/creator\/cover\/([^/]+)$/.exec(pn);
+    if (coverMatch && req.method === 'GET') {
+      const song = creatorPlatform.getSong(decodeURIComponent(coverMatch[1]));
+      if (!song) { sendJSON(res, { ok: false, error: '作品不存在' }, 404); return; }
+      const coverPath = creatorPlatform.coverPath(song);
+      if (!coverPath) { sendJSON(res, { ok: false, error: '封面不存在' }, 404); return; }
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': fs.statSync(coverPath).size });
+      fs.createReadStream(coverPath).pipe(res);
+      return;
+    }
+
+    sendJSON(res, { ok: false, error: '接口不存在' }, 404);
     return;
   }
 

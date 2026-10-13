@@ -4655,6 +4655,51 @@ ipcMain.handle('mineradio-local-library-set-member-only', async (event, payload 
   }
 });
 
+// ---------- 创作者平台（二改新增：审核 / 分成结算 / 全局统计） ----------
+const creatorPlatformForMain = (() => {
+  try {
+    const { CreatorPlatform: CP } = require('../creator-platform');
+    return new CP();
+  } catch (error) {
+    console.warn('[Creator] 主进程创作者平台初始化失败:', error.message);
+    return null;
+  }
+})();
+
+ipcMain.handle('mineradio-creator-admin-overview', async (event, password) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+  if (!creatorPlatformForMain) return { ok: false, error: '创作者平台未初始化' };
+  if (!memberSystem.adminCheck(password)) return { ok: false, error: '管理口令不正确' };
+  return {
+    ok: true,
+    songs: creatorPlatformForMain.allSongs(),
+    creators: creatorPlatformForMain.creatorsOverview(),
+    months: creatorPlatformForMain.revenueMonths(),
+    cutRate: 0.3,
+  };
+});
+
+ipcMain.handle('mineradio-creator-admin-audit', async (event, payload = {}) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+  if (!creatorPlatformForMain) return { ok: false, error: '创作者平台未初始化' };
+  if (!memberSystem.adminCheck(payload.password)) return { ok: false, error: '管理口令不正确' };
+  return creatorPlatformForMain.audit(payload.songId, !!payload.approve);
+});
+
+ipcMain.handle('mineradio-creator-admin-revenue', async (event, payload = {}) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+  if (!creatorPlatformForMain) return { ok: false, error: '创作者平台未初始化' };
+  if (!memberSystem.adminCheck(payload.password)) return { ok: false, error: '管理口令不正确' };
+  return creatorPlatformForMain.recordRevenue(payload.month, payload.total);
+});
+
+ipcMain.handle('mineradio-creator-admin-export', async (event, payload = {}) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+  if (!creatorPlatformForMain) return { ok: false, error: '创作者平台未初始化' };
+  if (!memberSystem.adminCheck(payload.password)) return { ok: false, error: '管理口令不正确' };
+  return creatorPlatformForMain.revenueExport(payload.month);
+});
+
 ipcMain.handle('mineradio-built-in-playlists-list', async (event) => {
   if (!isTrustedMainWindowIpc(event)) return { ok: false, count: 0, playlists: [], error: 'UNTRUSTED_SENDER' };
   return builtInPlaylistLibrary.listSync();
