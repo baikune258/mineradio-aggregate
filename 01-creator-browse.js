@@ -130,16 +130,13 @@
     toast('播放失败：播放核心未就绪');
   }
 
-  // "开始听歌"兜底：优先播放创作者专区已上架的免费歌（无需登录），没有则走平台每日推荐
+  // "开始听歌"兜底：优先播放创作者专区已上架的免费歌（无需登录）；没有则平台热门搜索自动播放
   function tryPlayCreatorFreeFallback() {
     return fetch(API + '/songs')
       .then(function (r) { return r.json(); })
       .then(function (d) {
         var free = (d.ok && d.songs || []).filter(function (s) { return s.status === 'approved' && !s.memberOnly; });
-        if (!free.length) {
-          if (typeof playHomeDaily === 'function') return playHomeDaily();
-          return;
-        }
+        if (!free.length) return playHotSearchFallback();
         var queue = free.map(function (s) {
           return {
             name: s.title,
@@ -151,23 +148,46 @@
             coverUrl: s.coverFile ? '/api/creator/cover/' + s.id : '',
           };
         });
-        try {
-          playQueue = queue;
-          currentIdx = 0;
-          if (typeof safeRenderQueuePanel === 'function') safeRenderQueuePanel('creator-fallback');
-          if (typeof safeShelfRebuild === 'function') safeShelfRebuild('creator-fallback', true);
-          if (typeof forcePlaybackControlsInteractive === 'function') forcePlaybackControlsInteractive();
-          if (typeof playQueueAt === 'function') return playQueueAt(0).catch(function (e) { console.warn('[CreatorFallbackPlay]', e); });
-        } catch (e) {
-          console.warn('[CreatorFallback]', e);
-        }
-        if (typeof playHomeDaily === 'function') return playHomeDaily();
-        return undefined;
+        return playQueueList(queue, 'creator-fallback');
       })
-      .catch(function () {
-        if (typeof playHomeDaily === 'function') return playHomeDaily();
-        return undefined;
-      });
+      .catch(function () { return playHotSearchFallback(); });
+  }
+
+  function playQueueList(queue, reason) {
+    try {
+      if (typeof playQueue === 'undefined' || !Array.isArray(playQueue)) return undefined;
+      playQueue = queue;
+      currentIdx = 0;
+      if (typeof safeRenderQueuePanel === 'function') safeRenderQueuePanel(reason || 'home-fallback');
+      if (typeof safeShelfRebuild === 'function') safeShelfRebuild(reason || 'home-fallback', true);
+      if (typeof forcePlaybackControlsInteractive === 'function') forcePlaybackControlsInteractive();
+      if (typeof playQueueAt === 'function') {
+        return playQueueAt(0).then(function () { return true; }).catch(function () { return false; });
+      }
+      return true;
+    } catch (_) { return undefined; }
+  }
+
+  // 平台热门搜索兜底（游客可用）：网易云搜索"热歌"取前几首自动播放
+  function playHotSearchFallback() {
+    return fetch('/api/netease/search?keywords=' + encodeURIComponent('热歌') + '&limit=5')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var songs = d && (d.result && d.result.songs || d.songs) || [];
+        if (!Array.isArray(songs) || !songs.length) return undefined;
+        var queue = songs.slice(0, 5).map(function (s) {
+          return {
+            name: s.name || s.title || '未知歌曲',
+            artist: String(s.artist || (s.artists && s.artists[0] && s.artists[0].name) || '').slice(0, 60),
+            source: 'netease',
+            id: String(s.id || ''),
+            cover: s.cover || s.picUrl || (s.album && s.album.picUrl) || '',
+            memberOnly: false,
+          };
+        });
+        return playQueueList(queue, 'home-hot-fallback');
+      })
+      .catch(function () { return undefined; });
   }
 
   window.openCreatorBrowse = openBrowse;
