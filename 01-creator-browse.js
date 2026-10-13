@@ -168,26 +168,40 @@
     } catch (_) { return undefined; }
   }
 
-  // 平台热门搜索兜底（游客可用）：网易云搜索"热歌"取前几首自动播放
+  // 平台热门搜索兜底（游客可用）：多关键词轮询网易云，只取免费（fee=0）歌曲自动播放
+  var HOT_KEYWORDS = ['热歌', '纯音乐', '轻音乐', '经典老歌', '民谣', '治愈系', '翻唱'];
   function playHotSearchFallback() {
-    return fetch('/api/netease/search?keywords=' + encodeURIComponent('热歌') + '&limit=5')
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        var songs = d && (d.result && d.result.songs || d.songs) || [];
-        if (!Array.isArray(songs) || !songs.length) return undefined;
-        var queue = songs.slice(0, 5).map(function (s) {
-          return {
-            name: s.name || s.title || '未知歌曲',
-            artist: String(s.artist || (s.artists && s.artists[0] && s.artists[0].name) || '').slice(0, 60),
-            source: 'netease',
-            id: String(s.id || ''),
-            cover: s.cover || s.picUrl || (s.album && s.album.picUrl) || '',
-            memberOnly: false,
-          };
-        });
-        return playQueueList(queue, 'home-hot-fallback');
-      })
-      .catch(function () { return undefined; });
+    var collected = [];
+    var chain = Promise.resolve();
+    HOT_KEYWORDS.forEach(function (kw) {
+      chain = chain.then(function () {
+        if (collected.length >= 5) return undefined;
+        return fetch('/api/search?keywords=' + encodeURIComponent(kw) + '&limit=20')
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            var songs = (d && d.songs) || [];
+            songs.forEach(function (s) {
+              if (collected.length >= 5) return;
+              if (Number(s.fee) === 0) collected.push(s);
+            });
+          })
+          .catch(function () { /* 单关键词失败继续下一个 */ });
+      });
+    });
+    return chain.then(function () {
+      if (!collected.length) return undefined;
+      var queue = collected.slice(0, 5).map(function (s) {
+        return {
+          name: s.name || '未知歌曲',
+          artist: String(s.artist || '').slice(0, 60),
+          source: 'netease',
+          id: String(s.id || ''),
+          cover: s.cover || '',
+          memberOnly: false,
+        };
+      });
+      return playQueueList(queue, 'home-hot-fallback');
+    });
   }
 
   window.openCreatorBrowse = openBrowse;
