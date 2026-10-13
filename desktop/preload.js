@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld('desktopWindow', {
   creatorAdminAudit: (payload) => ipcRenderer.invoke('mineradio-creator-admin-audit', payload || {}),
   creatorAdminRevenue: (payload) => ipcRenderer.invoke('mineradio-creator-admin-revenue', payload || {}),
   creatorAdminExport: (payload) => ipcRenderer.invoke('mineradio-creator-admin-export', payload || {}),
+  creatorAutoApproveToken: (password) => ipcRenderer.invoke('mineradio-creator-autoapprove-token', String(password || '')),
   listBuiltInPlaylists: () => ipcRenderer.invoke('mineradio-built-in-playlists-list'),
   readBuiltInPlaylist: (id, options) => ipcRenderer.invoke('mineradio-built-in-playlist-page', String(id || ''), options || {}),
   createBuiltInPlaylist: (name) => ipcRenderer.invoke('mineradio-built-in-playlist-create', String(name || '')),

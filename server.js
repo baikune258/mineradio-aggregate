@@ -7038,12 +7038,15 @@ const server = http.createServer(async (req, res) => {
         sendJSON(res, { ok: false, error: '音频超过 300MB 限制' }, 400);
         return;
       }
+      const autoApprove = !!parsed.fields.autoApproveToken
+        && creatorPlatform.verifyAutoApproveToken(String(parsed.fields.autoApproveToken || ''));
       const created = creatorPlatform.createSong({
         creatorId: user.id,
         title: parsed.fields.title,
         artist: parsed.fields.artist,
         memberOnly: parsed.fields.memberOnly === '1' || parsed.fields.memberOnly === 'true',
         lyricText: parsed.fields.lyricText,
+        status: autoApprove ? 'approved' : undefined,
       });
       if (!created.ok) {
         try { fs.unlinkSync(audio.tempPath); } catch (_) {}

@@ -4700,6 +4700,13 @@ ipcMain.handle('mineradio-creator-admin-export', async (event, payload = {}) => 
   return creatorPlatformForMain.revenueExport(payload.month);
 });
 
+ipcMain.handle('mineradio-creator-autoapprove-token', async (event, password) => {
+  if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+  if (!creatorPlatformForMain) return { ok: false, error: '创作者平台未初始化' };
+  if (!memberSystem.adminCheck(password)) return { ok: false, error: '管理口令不正确' };
+  return { ok: true, token: creatorPlatformForMain.makeAutoApproveToken(300) };
+});
+
 ipcMain.handle('mineradio-built-in-playlists-list', async (event) => {
   if (!isTrustedMainWindowIpc(event)) return { ok: false, count: 0, playlists: [], error: 'UNTRUSTED_SENDER' };
   return builtInPlaylistLibrary.listSync();

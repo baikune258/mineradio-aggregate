@@ -162,6 +162,9 @@
     root.appendChild(coverInput);
     root.appendChild(audioInput);
     var uploadBtn = el('button', 'mr-btn primary', '提交上传（待审核）');
+    var autoApproveBox = el('label', 'mr-dim');
+    autoApproveBox.innerHTML = '<input type="checkbox" id="mr-autoapprove"> 平台方免审（验证管理口令后直接上架）';
+    root.appendChild(autoApproveBox);
     root.appendChild(uploadBtn);
     uploadBtn.onclick = function () {
       var audioFile = audioInput.files && audioInput.files[0];
@@ -169,27 +172,45 @@
       if (!titleInput.value.trim()) { toast('请填写歌曲名'); return; }
       uploadBtn.disabled = true;
       uploadBtn.textContent = '上传中…';
-      var fd = new FormData();
-      fd.append('token', getToken());
-      fd.append('title', titleInput.value.trim());
-      fd.append('artist', artistInput.value.trim());
-      fd.append('memberOnly', document.querySelector('input[name="mr-pricing"]:checked').value === 'vip' ? '1' : '0');
-      fd.append('lyricText', lyricInput.value || '');
-      fd.append('audio', audioFile);
-      if (coverInput.files && coverInput.files[0]) fd.append('cover', coverInput.files[0]);
-      fetch(API + '/upload', { method: 'POST', body: fd })
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          uploadBtn.disabled = false;
-          uploadBtn.textContent = '提交上传（待审核）';
-          if (d.ok) { toast('上传成功，等待平台审核'); refreshCenter(); }
-          else toast(d.error || '上传失败');
-        })
-        .catch(function () {
-          uploadBtn.disabled = false;
-          uploadBtn.textContent = '提交上传（待审核）';
-          toast('上传失败，请重试');
-        });
+      var wantAuto = document.getElementById('mr-autoapprove') && document.getElementById('mr-autoapprove').checked;
+      function doUpload(autoToken) {
+        var fd = new FormData();
+        fd.append('token', getToken());
+        fd.append('title', titleInput.value.trim());
+        fd.append('artist', artistInput.value.trim());
+        fd.append('memberOnly', document.querySelector('input[name="mr-pricing"]:checked').value === 'vip' ? '1' : '0');
+        fd.append('lyricText', lyricInput.value || '');
+        if (autoToken) fd.append('autoApproveToken', autoToken);
+        fd.append('audio', audioFile);
+        if (coverInput.files && coverInput.files[0]) fd.append('cover', coverInput.files[0]);
+        fetch(API + '/upload', { method: 'POST', body: fd })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = '提交上传（待审核）';
+            if (d.ok) { toast(d.song && d.song.status === 'approved' ? '上传成功，已直接上架' : '上传成功，等待平台审核'); refreshCenter(); }
+            else toast(d.error || '上传失败');
+          })
+          .catch(function () {
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = '提交上传（待审核）';
+            toast('上传失败，请重试');
+          });
+      }
+      if (wantAuto) {
+        var p = window.prompt('请输入管理口令（平台方免审）：');
+        if (p == null) { uploadBtn.disabled = false; uploadBtn.textContent = '提交上传（待审核）'; return; }
+        var dw = window.desktopWindow || {};
+        if (typeof dw.creatorAutoApproveToken !== 'function') { toast('免审功能不可用'); uploadBtn.disabled = false; uploadBtn.textContent = '提交上传（待审核）'; return; }
+        dw.creatorAutoApproveToken(String(p || ''))
+          .then(function (r) {
+            if (r && r.ok) { doUpload(r.token); }
+            else { toast((r && r.error) || '管理口令不正确'); uploadBtn.disabled = false; uploadBtn.textContent = '提交上传（待审核）'; }
+          })
+          .catch(function () { toast('免审验证失败'); uploadBtn.disabled = false; uploadBtn.textContent = '提交上传（待审核）'; });
+        return;
+      }
+      doUpload(null);
     };
 
     // 我的作品

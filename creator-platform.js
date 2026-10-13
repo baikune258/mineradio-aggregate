@@ -57,6 +57,32 @@ class CreatorPlatform {
     this._ensure();
   }
 
+  // 平台方免审令牌：主进程验证管理口令后签发，上传接口校验通过则自动上架
+  makeAutoApproveToken(ttlSec) {
+    const ttl = Number(ttlSec) > 0 ? Number(ttlSec) : 300;
+    const payload = Buffer.from('autoapprove:' + Math.floor(Date.now() / 1000 + ttl)).toString('base64');
+    const sig = crypto.createHmac('sha256', this._secret + ':autoapprove').update(payload).digest('hex').slice(0, 16);
+    return payload + '.' + sig;
+  }
+
+  verifyAutoApproveToken(token) {
+    if (!token || typeof token !== 'string') return false;
+    const dot = token.indexOf('.');
+    if (dot <= 0) return false;
+    const payload = token.slice(0, dot);
+    const sig = token.slice(dot + 1);
+    const expect = crypto.createHmac('sha256', this._secret + ':autoapprove').update(payload).digest('hex').slice(0, 16);
+    if (sig !== expect) return false;
+    try {
+      const raw = Buffer.from(payload, 'base64').toString('utf8');
+      if (!raw.startsWith('autoapprove:')) return false;
+      const exp = Number(raw.slice('autoapprove:'.length));
+      return !!exp && Date.now() / 1000 < exp;
+    } catch (_) {
+      return false;
+    }
+  }
+
   _ensure() {
     fs.mkdirSync(this.dataDir, { recursive: true });
     fs.mkdirSync(this.filesDir, { recursive: true });
@@ -155,7 +181,7 @@ class CreatorPlatform {
       audioFile: spec.audioFile || '',
       audioSize: spec.audioSize || 0,
       audioExt: String(spec.audioExt || '').replace(/[^a-z0-9.]/gi, ''),
-      status: 'pending',
+      status: spec.status === 'approved' ? 'approved' : 'pending',
       createdAt: Date.now(),
       playsFree: 0,
       playsMember: 0,
