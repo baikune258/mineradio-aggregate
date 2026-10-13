@@ -1250,7 +1250,9 @@ function renderSongSearchResults(songs) {
   setSearchHistorySurface(false);
   var plan = pendingSearchProviderPages || {};
   resetSearchMusicRenderState();
-  playlist = Array.isArray(songs) ? songs : [];
+  // 只保留各平台免费歌曲，其他平台的会员歌不显示
+  songs = (Array.isArray(songs) ? songs : []).filter(function (s) { return !songRequiresVip(s); });
+  playlist = songs;
   searchMusicRenderState.key = plan.key || searchLastResultQuery || searchResultKey($input && $input.value, searchMode);
   searchMusicRenderState.query = plan.query || String($input && $input.value || '').trim();
   searchMusicRenderState.mode = plan.mode || searchMode;
