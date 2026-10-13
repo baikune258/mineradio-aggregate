@@ -1,0 +1,259 @@
+'use strict';
+
+// =============================================================
+// Mineradio 设置面板（二改新增）
+// 全局 API：window.openSettingsPanel()
+// 内容：播放与界面 / 数据管理 / 缓存与空间 / 账号（入口）
+// =============================================================
+
+(function initSettingsPanelModule() {
+  let panelEl = null;
+
+  function settingsApi() {
+    return window.desktopWindow || {};
+  }
+
+  function toast(text) {
+    if (typeof window.showToast === 'function') window.showToast(text);
+  }
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function panelStyles() {
+    const style = document.createElement('style');
+    style.textContent = [
+      '#mineradio-settings-panel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:440px;max-width:92vw;max-height:84vh;overflow:auto;background:rgba(16,18,26,.98);border:1px solid rgba(120,140,255,.35);border-radius:16px;padding:22px 24px;color:#e8ecff;font-family:inherit;font-size:14px;z-index:99999;box-shadow:0 18px 60px rgba(0,0,0,.65)}',
+      '#mineradio-settings-panel h3{margin:0 0 4px;font-size:18px;font-weight:700;color:#fff}',
+      '#mineradio-settings-panel .mr-sub{color:#9aa3c7;font-size:12px;margin-bottom:16px}',
+      '#mineradio-settings-panel .mr-sec{font-size:13px;font-weight:700;color:#cdd6ff;margin:16px 0 8px}',
+      '#mineradio-settings-panel .mr-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px}',
+      '#mineradio-settings-panel .mr-row .mr-label{flex:1}',
+      '#mineradio-settings-panel .mr-btn{display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;color:#fff;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;margin:4px 6px 4px 0}',
+      '#mineradio-settings-panel .mr-btn:hover{filter:brightness(1.1)}',
+      '#mineradio-settings-panel .mr-btn.ghost{background:rgba(255,255,255,.09);border:1px solid rgba(120,140,255,.25)}',
+      '#mineradio-settings-panel .mr-btn.small{padding:4px 10px;font-size:12px;border-radius:6px}',
+      '#mineradio-settings-panel .mr-close{position:absolute;right:14px;top:12px;background:none;border:none;color:#9aa3c7;font-size:20px;cursor:pointer}',
+      '#mineradio-settings-panel .mr-dim{color:#9aa3c7;font-size:12px;line-height:1.6}',
+      '#mineradio-settings-panel .mr-switch{border:1px solid rgba(120,140,255,.35);background:rgba(255,255,255,.07);color:#cdd6ff;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;flex-shrink:0}',
+      '#mineradio-settings-panel .mr-switch.on{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-color:transparent}',
+      '#mineradio-settings-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99998}',
+    ].join('');
+    document.head.appendChild(style);
+  }
+
+  function closePanel() {
+    if (panelEl) { panelEl.remove(); panelEl = null; }
+    const overlay = document.getElementById('mineradio-settings-overlay');
+    if (overlay) overlay.remove();
+  }
+
+  function row(label, control) {
+    const r = el('div', 'mr-row');
+    r.appendChild(el('span', 'mr-label', label));
+    r.appendChild(control);
+    return r;
+  }
+
+  function modeSwitch(label, isOn, onClick) {
+    const btn = el('button', 'mr-switch' + (isOn ? ' on' : ''), isOn ? '开' : '关');
+    btn.onclick = function () {
+      onClick(!isOn);
+      btn.classList.toggle('on');
+      btn.textContent = btn.classList.contains('on') ? '开' : '关';
+    };
+    return row(label, btn);
+  }
+
+  // ---------------- 播放与界面 ----------------
+
+  function buildPlaybackUi(container) {
+    container.appendChild(el('div', 'mr-sec', '播放与界面'));
+
+    // 播放模式（loop / shuffle / single）
+    function currentPlayMode() {
+      return (typeof playMode !== 'undefined' && playMode) || 'loop';
+    }
+    function playModeLabelCn(mode) {
+      return mode === 'shuffle' ? '随机播放' : (mode === 'single' ? '单曲循环' : '列表循环');
+    }
+    const modeBtn = el('button', 'mr-btn small ghost', playModeLabelCn(currentPlayMode()));
+    modeBtn.onclick = function () {
+      if (typeof cyclePlayMode === 'function') {
+        cyclePlayMode();
+        setTimeout(function () { modeBtn.textContent = playModeLabelCn(currentPlayMode()); }, 60);
+      } else toast('播放模式控制不可用');
+    };
+    container.appendChild(row('播放模式（点击切换）', modeBtn));
+
+    // 歌词显示
+    const lyricBtn = el('button', 'mr-btn small ghost', '切换');
+    lyricBtn.onclick = function () {
+      if (typeof toggleLyricsPanel === 'function') toggleLyricsPanel();
+      else toast('歌词控制不可用');
+    };
+    container.appendChild(row('歌词显示', lyricBtn));
+
+    // 启动恢复播放
+    const resumeBtn = el('button', 'mr-btn small ghost', (function () {
+      return (typeof startupResumeModePreference !== 'undefined' && startupResumeModePreference === 'restart') ? '重播整首' : '按上次进度';
+    })());
+    resumeBtn.onclick = function () {
+      if (typeof setStartupResumeModePreference === 'function') {
+        const next = (typeof startupResumeModePreference !== 'undefined' && startupResumeModePreference === 'restart') ? 'resume' : 'restart';
+        setStartupResumeModePreference(next, { toast: true });
+        resumeBtn.textContent = next === 'restart' ? '重播整首' : '按上次进度';
+      } else toast('启动恢复设置不可用');
+    };
+    container.appendChild(row('启动后恢复上次播放', resumeBtn));
+
+    // 启动自动播放
+    const autoplayOn = (typeof startupAutoplayPreference !== 'undefined' && !!startupAutoplayPreference);
+    const autoBtn = el('button', 'mr-switch' + (autoplayOn ? ' on' : ''), autoplayOn ? '开' : '关');
+    autoBtn.onclick = function () {
+      if (typeof toggleStartupAutoplay === 'function') {
+        toggleStartupAutoplay();
+        setTimeout(function () {
+          const on = (typeof startupAutoplayPreference !== 'undefined' && !!startupAutoplayPreference);
+          autoBtn.classList.toggle('on', on);
+          autoBtn.textContent = on ? '开' : '关';
+        }, 60);
+      } else toast('启动自动播放不可用');
+    };
+    container.appendChild(row('启动时自动播放', autoBtn));
+  }
+
+  // ---------------- 数据管理 / 缓存 ----------------
+
+  function buildDataCacheUi(container) {
+    container.appendChild(el('div', 'mr-sec', '数据管理'));
+    const info = el('div', 'mr-dim', '加载中…');
+    container.appendChild(info);
+    if (typeof settingsApi().appInfo === 'function') {
+      settingsApi().appInfo().then(function (res) {
+        if (res && res.ok) {
+          info.textContent = '数据目录（全部数据跟随安装目录，不占系统盘）：\n' + res.installDataDir + '\n缓存目录：\n' + res.cacheRoot;
+          info.style.whiteSpace = 'pre-wrap';
+        } else info.textContent = '数据目录读取失败';
+      }).catch(function () { info.textContent = '数据目录读取失败'; });
+    } else info.textContent = '数据目录读取失败';
+
+    const openBtn = el('button', 'mr-btn small ghost', '打开数据文件夹');
+    openBtn.onclick = function () {
+      if (typeof settingsApi().openDataDir === 'function') settingsApi().openDataDir('data');
+    };
+    container.appendChild(openBtn);
+
+    container.appendChild(el('div', 'mr-sec', '缓存与空间'));
+    container.appendChild(el('div', 'mr-dim', '缓存（歌词/界面/临时文件）可随时清空，不影响曲库、账号、会员和创作者数据。'));
+    const clearBtn = el('button', 'mr-btn small ghost', '清空缓存');
+    clearBtn.onclick = function () {
+      if (typeof settingsApi().clearCache !== 'function') { toast('清缓存不可用'); return; }
+      clearBtn.disabled = true;
+      settingsApi().clearCache()
+        .then(function (res) {
+          toast((res && res.ok) ? '缓存已清空' : ((res && res.error) || '清缓存失败'));
+        })
+        .catch(function () { toast('清缓存失败'); })
+        .finally(function () { clearBtn.disabled = false; });
+    };
+    container.appendChild(clearBtn);
+
+    const openCacheBtn = el('button', 'mr-btn small ghost', '打开缓存文件夹');
+    openCacheBtn.onclick = function () {
+      if (typeof settingsApi().openDataDir === 'function') settingsApi().openDataDir('cache');
+    };
+    container.appendChild(openCacheBtn);
+
+    container.appendChild(el('div', 'mr-sec', '备份与恢复'));
+    container.appendChild(el('div', 'mr-dim', '全部数据（曲库 / 会员 / 创作者 / 听众账号）都在上面「数据目录」里。备份 = 复制该文件夹；恢复 = 装好后把文件夹放回原处（新设备安装目录）。'));
+  }
+
+  // ---------------- 账号入口 ----------------
+
+  function buildAccountEntry(container) {
+    container.appendChild(el('div', 'mr-sec', '账号'));
+    const openAccount = el('button', 'mr-btn small ghost', '打开听众账号面板');
+    openAccount.onclick = function () {
+      closePanel();
+      if (typeof window.openListenerAccountPanel === 'function') window.openListenerAccountPanel();
+      else toast('账号面板不可用');
+    };
+    container.appendChild(openAccount);
+    container.appendChild(el('div', 'mr-dim', '注册登录后可管理个人歌单、收藏、收听记录；会员激活时绑定账号，换设备不丢。'));
+  }
+
+  // ---------------- 检查更新 ----------------
+
+  function buildUpdateEntry(container) {
+    container.appendChild(el('div', 'mr-sec', '检查更新'));
+    const statusLine = el('div', 'mr-dim', '点击检查是否有新版本可下载安装');
+    const btn = el('button', 'mr-btn small ghost', '检查更新');
+    btn.onclick = function () {
+      const dw = window.desktopWindow || {};
+      if (typeof dw.checkUpdate !== 'function') { toast('检查更新仅桌面版可用'); return; }
+      statusLine.textContent = '正在检查…';
+      dw.checkUpdate().then(function (res) {
+        if (res && res.ok) return;
+        statusLine.textContent = (res && res.error) || '检查失败';
+      });
+      if (typeof dw.onUpdateStatus === 'function') {
+        dw.onUpdateStatus(function (s) {
+          if (!s) return;
+          if (s.state === 'checking') statusLine.textContent = '正在检查…';
+          else if (s.state === 'available') {
+            statusLine.textContent = '发现新版本 v' + s.version + '，正在后台下载…';
+            const dl = el('button', 'mr-btn small ghost', '下载并安装');
+            dl.onclick = function () { dw.downloadUpdate(); };
+            statusLine.appendChild(dl);
+          }
+          else if (s.state === 'downloading') statusLine.textContent = '下载中 ' + (s.percent || 0).toFixed(0) + '%';
+          else if (s.state === 'downloaded') {
+            statusLine.textContent = '新版本 v' + s.version + ' 已下载，重启安装';
+            const inst = el('button', 'mr-btn small ghost', '立即重启安装');
+            inst.onclick = function () { dw.installUpdate(); };
+            statusLine.appendChild(inst);
+          }
+          else if (s.state === 'none') statusLine.textContent = '已是最新版本';
+          else if (s.state === 'error') statusLine.textContent = '检查更新失败：' + (s.message || '网络异常');
+        });
+      }
+    };
+    container.appendChild(btn);
+    container.appendChild(statusLine);
+  }
+
+  // ---------------- 打开面板 ----------------
+
+  function openSettingsPanel() {
+    panelStyles();
+    const overlay = el('div', '', '');
+    overlay.id = 'mineradio-settings-overlay';
+    overlay.onclick = closePanel;
+    document.body.appendChild(overlay);
+
+    const panel = el('div', '', '');
+    panel.id = 'mineradio-settings-panel';
+    const close = el('button', 'mr-close', '×');
+    close.onclick = closePanel;
+    panel.appendChild(close);
+    panel.appendChild(el('h3', '', '设置'));
+    panel.appendChild(el('div', 'mr-sub', '播放与界面 · 数据管理 · 缓存与空间 · 账号'));
+
+    const body = el('div');
+    panel.appendChild(body);
+    panelEl = panel;
+    document.body.appendChild(panel);
+
+    buildPlaybackUi(body);
+    buildDataCacheUi(body);
+    buildAccountEntry(body);
+    buildUpdateEntry(body);
+  }
+
+  window.openSettingsPanel = openSettingsPanel;
+})();

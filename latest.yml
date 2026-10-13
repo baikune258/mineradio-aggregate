@@ -1,8 +1,8 @@
-version: 2.3.1
+version: 2.3.2
 files:
-  - url: Mineradio-2.3.1-Setup.exe
-    sha512: HinCGu3YDzBiWgfIE3dg9fgiAfWwgKx8/LK9MHXMu4IQ8d6oztdhxd2tb0j7qX5OGqroNNcTXbpEp8p01uXamg==
-    size: 116102844
-path: Mineradio-2.3.1-Setup.exe
-sha512: HinCGu3YDzBiWgfIE3dg9fgiAfWwgKx8/LK9MHXMu4IQ8d6oztdhxd2tb0j7qX5OGqroNNcTXbpEp8p01uXamg==
-releaseDate: '2026-10-13T07:38:19.969Z'
+  - url: Mineradio-2.3.2-Setup.exe
+    sha512: 7v3t3W3K+2ysAevrMMjyRKPqZN5B4cGcCszFtKj0aWcNipx0xYuiSrr76dyBccxi5DY2WhQykh+JdaD7wUpJXA==
+    size: 116590112
+path: Mineradio-2.3.2-Setup.exe
+sha512: 7v3t3W3K+2ysAevrMMjyRKPqZN5B4cGcCszFtKj0aWcNipx0xYuiSrr76dyBccxi5DY2WhQykh+JdaD7wUpJXA==
+releaseDate: '2026-10-13T08:00:22.972Z'

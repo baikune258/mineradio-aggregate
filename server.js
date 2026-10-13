@@ -6883,6 +6883,24 @@ const server = http.createServer(async (req, res) => {
     }
   })();
 
+  // 听众账号系统（二改）：与桌面端共用同一数据层，浏览器/桌面都能注册登录
+  const listenerSystemServer = (() => {
+    try {
+      const { ListenerSystem: LS } = require('./listener-system');
+      return new LS();
+    } catch (error) {
+      console.warn('[Listener] 服务端听众账号初始化失败:', error.message);
+      return null;
+    }
+  })();
+  function listenerServerIpc(fn) {
+    return async (...args) => {
+      if (!listenerSystemServer) return { ok: false, error: '听众账号服务未就绪' };
+      try { return await fn(listenerSystemServer, ...args); }
+      catch (error) { return { ok: false, error: error.message || 'LISTENER_FAILED' }; }
+    };
+  }
+
   // 流式 multipart 解析：大文件不整包进内存
   function multipartParse(req, boundary, tmpDir) {
     return new Promise(resolve => {
@@ -6970,6 +6988,78 @@ const server = http.createServer(async (req, res) => {
 
   function cryptoRandomName() {
     return require('crypto').randomBytes(6).toString('hex');
+  }
+
+  if (pn.indexOf('/api/listener/') === 0) {
+    const lb = (payload) => { const b = payload || {}; return b; };
+    if (pn === '/api/listener/register' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.register(p.name, p.password))(body), 200);
+      return;
+    }
+    if (pn === '/api/listener/login' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.login(p.name, p.password))(body), 200);
+      return;
+    }
+    if (pn === '/api/listener/status' && req.method === 'GET') {
+      const token = String(url.searchParams.get('token') || '');
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.status(p.token))(lb({ token })), 200);
+      return;
+    }
+    if (pn === '/api/listener/logout' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.logout(p.token))(body), 200);
+      return;
+    }
+    if (pn === '/api/listener/member-bind' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.bindMember(p.token, p.expireAt))(body), 200);
+      return;
+    }
+    if (pn === '/api/listener/add-playlist' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.addPlaylist(p.token, p.name))(body), 200);
+      return;
+    }
+    if (pn === '/api/listener/rename-playlist' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.renamePlaylist(p.token, p.playlistId, p.name))(body), 200);
+      return;
+    }
+    if (pn === '/api/listener/delete-playlist' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.deletePlaylist(p.token, p.playlistId))(body), 200);
+      return;
+    }
+    if (pn === '/api/listener/add-track' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.addTrackToPlaylist(p.token, p.playlistId, p.track))(body), 200);
+      return;
+    }
+    if (pn === '/api/listener/remove-track' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.removeTrackFromPlaylist(p.token, p.playlistId, p.trackKey))(body), 200);
+      return;
+    }
+    if (pn === '/api/listener/toggle-favorite' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.toggleFavorite(p.token, p.track))(body), 200);
+      return;
+    }
+    if (pn === '/api/listener/is-favorite' && req.method === 'GET') {
+      const token = String(url.searchParams.get('token') || '');
+      const trackKey = String(url.searchParams.get('trackKey') || '');
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.isFavorite(p.token, p.trackKey))(lb({ token, trackKey })), 200);
+      return;
+    }
+    if (pn === '/api/listener/record-play' && req.method === 'POST') {
+      const body = await readRequestBody(req);
+      sendJSON(res, await listenerServerIpc((ls, p) => ls.recordPlay(p.token, p.track))(body), 200);
+      return;
+    }
+    sendJSON(res, { ok: false, error: 'UNKNOWN_LISTENER_API' }, 404);
+    return;
   }
 
   if (pn.indexOf('/api/creator/') === 0) {

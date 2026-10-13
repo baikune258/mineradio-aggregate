@@ -71,6 +71,14 @@ contextBridge.exposeInMainWorld('desktopWindow', {
   listenerRecordPlay: (payload) => ipcRenderer.invoke('mineradio-listener-record-play', payload || {}),
   listenerExport: (payload) => ipcRenderer.invoke('mineradio-listener-export', payload || {}),
   listenerImport: (payload) => ipcRenderer.invoke('mineradio-listener-import', payload || {}),
+  checkUpdate: () => ipcRenderer.invoke('mineradio-check-update'),
+  downloadUpdate: () => ipcRenderer.invoke('mineradio-download-update'),
+  installUpdate: () => ipcRenderer.invoke('mineradio-install-update'),
+  onUpdateStatus: (cb) => {
+    const listener = (_event, payload) => { try { cb(payload); } catch (_) {} };
+    ipcRenderer.on('mineradio-update-status', listener);
+    return () => { try { ipcRenderer.removeListener('mineradio-update-status', listener); } catch (_) {} };
+  },
   appInfo: () => ipcRenderer.invoke('mineradio-app-info'),
   openDataDir: (target) => ipcRenderer.invoke('mineradio-open-data-dir', String(target || '')),
   clearCache: () => ipcRenderer.invoke('mineradio-clear-cache'),

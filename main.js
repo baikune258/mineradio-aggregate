@@ -18,6 +18,8 @@ const { BuiltInPlaylistLibrary } = require('./built-in-playlist-library');
 const { MemberSystem } = require('./member-system');
 const { WallpaperEngineRuntime } = require('./wallpaper-engine-runtime');
 const { FullDesktopModeRuntime } = require('./full-desktop-mode-runtime');
+let autoUpdater = null;
+try { autoUpdater = require('electron-updater').autoUpdater; } catch (_) { autoUpdater = null; }
 const {
   LoginEasterEggGate,
   LOGIN_EASTER_EGG_GATE_VERSION,
@@ -824,6 +826,46 @@ function isTrustedMainDocumentUrl(value) {
   } catch (_) {
     return false;
   }
+}
+
+function pushUpdateStatus(payload) {
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('mineradio-update-status', payload);
+  } catch (_) {}
+}
+
+function setupAutoUpdater() {
+  if (!autoUpdater) return;
+  try {
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.on('checking-for-update', () => pushUpdateStatus({ state: 'checking' }));
+    autoUpdater.on('update-available', (info) => pushUpdateStatus({ state: 'available', version: info && info.version || '' }));
+    autoUpdater.on('update-not-available', () => pushUpdateStatus({ state: 'none' }));
+    autoUpdater.on('download-progress', (p) => pushUpdateStatus({ state: 'downloading', percent: Number(p && p.percent) || 0 }));
+    autoUpdater.on('update-downloaded', (info) => pushUpdateStatus({ state: 'downloaded', version: info && info.version || '' }));
+    autoUpdater.on('error', (err) => pushUpdateStatus({ state: 'error', message: err && err.message || String(err) }));
+  } catch (error) { console.warn('[Updater] events failed:', error && error.message || error); }
+
+  ipcMain.handle('mineradio-check-update', async (event) => {
+    if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+    if (!autoUpdater) return { ok: false, error: '更新服务不可用' };
+    if (!app.isPackaged) return { ok: false, error: '当前为开发模式，检查更新仅安装版可用' };
+    try { autoUpdater.checkForUpdates(); return { ok: true }; }
+    catch (e) { return { ok: false, error: e.message }; }
+  });
+  ipcMain.handle('mineradio-download-update', async (event) => {
+    if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+    if (!autoUpdater) return { ok: false, error: '更新服务不可用' };
+    try { autoUpdater.downloadUpdate(); return { ok: true }; }
+    catch (e) { return { ok: false, error: e.message }; }
+  });
+  ipcMain.handle('mineradio-install-update', async (event) => {
+    if (!isTrustedMainWindowIpc(event)) return { ok: false, error: 'UNTRUSTED_SENDER' };
+    if (!autoUpdater) return { ok: false, error: '更新服务不可用' };
+    try { autoUpdater.quitAndInstall(false, true); return { ok: true }; }
+    catch (e) { return { ok: false, error: e.message }; }
+  });
 }
 
 function isTrustedMainWindowIpc(event) {
@@ -6194,6 +6236,11 @@ if (!gotSingleInstanceLock) {
   });
 
   app.whenReady().then(async () => {
+    try {
+      setupAutoUpdater();
+    } catch (error) {
+      console.warn('[Updater] setup failed:', error && error.message || error);
+    }
     try {
       await localMusicLibrary.installProtocol(protocol);
     } catch (error) {

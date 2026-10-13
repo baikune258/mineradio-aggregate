@@ -168,12 +168,59 @@
     } catch (_) { return undefined; }
   }
 
-  // 平台热门搜索兜底（游客可用）：多关键词轮询网易云，只取免费（fee=0）歌曲自动播放
-  var HOT_KEYWORDS = ['热歌', '纯音乐', '轻音乐', '经典老歌', '民谣', '治愈系', '翻唱'];
+  // 每日推荐兜底（游客可用）：关键词池按日期轮换 + 结果随机打乱 + 当日去重，
+  // 保证像汽水音乐一样每天自动换一批新歌，同一天内不重复。
+  var HOT_KEYWORD_POOL = [
+    '热歌', '纯音乐', '轻音乐', '经典老歌', '民谣', '治愈系', '翻唱',
+    '摇滚', '电子', '爵士', '钢琴曲', '古风', '粤语歌', '英文歌',
+    '动漫音乐', '游戏音乐', '冥想', '咖啡馆', '夜跑', '怀旧', '清新'
+  ];
+  var DAY_KEY = 'mineradio-daily-played';
+  function dailySeed() {
+    var d = new Date();
+    var key = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+    var h = 2166136261;
+    for (var i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = (h * 16777619) >>> 0; }
+    return { key: key, hash: h };
+  }
+  function pickDailyKeywords(hash) {
+    var pool = HOT_KEYWORD_POOL;
+    var start = hash % pool.length;
+    var picks = [];
+    for (var i = 0; i < 4; i++) {
+      var idx = (start + i * 3) % pool.length;
+      if (picks.indexOf(pool[idx]) === -1) picks.push(pool[idx]);
+    }
+    return picks;
+  }
+  function dailyPlayedIds() {
+    var seed = dailySeed();
+    try {
+      var raw = JSON.parse(localStorage.getItem(DAY_KEY) || '{}');
+      return (raw && raw.key === seed.key && Array.isArray(raw.ids)) ? raw.ids : [];
+    } catch (_) { return []; }
+  }
+  function rememberDailyPlayed(ids) {
+    var seed = dailySeed();
+    try { localStorage.setItem(DAY_KEY, JSON.stringify({ key: seed.key, ids: ids })); } catch (_) {}
+  }
+  function shuffled(list, seedHash) {
+    var arr = list.slice();
+    var s = seedHash || 1;
+    for (var i = arr.length - 1; i > 0; i--) {
+      s = (s * 1103515245 + 12345) >>> 0;
+      var j = s % (i + 1);
+      var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+  }
   function playHotSearchFallback() {
+    var seed = dailySeed();
+    var keywords = pickDailyKeywords(seed.hash);
+    var played = dailyPlayedIds();
     var collected = [];
     var chain = Promise.resolve();
-    HOT_KEYWORDS.forEach(function (kw) {
+    keywords.forEach(function (kw) {
       chain = chain.then(function () {
         if (collected.length >= 5) return undefined;
         return fetch('/api/search?keywords=' + encodeURIComponent(kw) + '&limit=20')
@@ -182,15 +229,25 @@
             var songs = (d && d.songs) || [];
             songs.forEach(function (s) {
               if (collected.length >= 5) return;
-              if (Number(s.fee) === 0) collected.push(s);
+              if (Number(s.fee) !== 0) return;
+              var sid = String(s.id || '');
+              if (played.indexOf(sid) !== -1) return;
+              collected.push(s);
             });
           })
           .catch(function () { /* 单关键词失败继续下一个 */ });
       });
     });
     return chain.then(function () {
-      if (!collected.length) return undefined;
-      var queue = collected.slice(0, 5).map(function (s) {
+      if (!collected.length) {
+        // 当天全听过了：清空当日记录再来一轮，保证一定有歌
+        try { localStorage.removeItem(DAY_KEY); } catch (_) {}
+        collected = [];
+        return undefined;
+      }
+      var fresh = shuffled(collected, seed.hash).slice(0, 5);
+      rememberDailyPlayed(played.concat(fresh.map(function (s) { return String(s.id); })));
+      var queue = fresh.map(function (s) {
         return {
           name: s.name || '未知歌曲',
           artist: String(s.artist || '').slice(0, 60),
@@ -200,7 +257,7 @@
           memberOnly: false,
         };
       });
-      return playQueueList(queue, 'home-hot-fallback');
+      return playQueueList(queue, 'home-daily-fresh');
     });
   }
 

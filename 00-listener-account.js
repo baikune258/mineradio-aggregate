@@ -17,7 +17,30 @@
   let panelEl = null;
 
   function listenerApi() {
-    return window.desktopWindow || {};
+    const dw = window.desktopWindow || {};
+    if (dw && typeof dw.listenerRegister === 'function' && typeof dw.listenerStatus === 'function') return dw;
+    // 浏览器/无 IPC 环境：走本地服务端账号路由（桌面版内嵌服务同样可用）
+    const post = (pn, payload) => fetch(pn, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload || {})
+    }).then(r => r.json());
+    const get = (pn) => fetch(pn).then(r => r.json());
+    return {
+      listenerRegister: (p) => post('/api/listener/register', p),
+      listenerLogin: (p) => post('/api/listener/login', p),
+      listenerLogout: (t) => post('/api/listener/logout', { token: t }),
+      listenerStatus: (t) => get('/api/listener/status?token=' + encodeURIComponent(t)),
+      listenerMemberBind: (t, e) => post('/api/listener/member-bind', { token: t, expireAt: e }),
+      listenerAddPlaylist: (t, n) => post('/api/listener/add-playlist', { token: t, name: n }),
+      listenerRenamePlaylist: (t, id, n) => post('/api/listener/rename-playlist', { token: t, playlistId: id, name: n }),
+      listenerDeletePlaylist: (t, id) => post('/api/listener/delete-playlist', { token: t, playlistId: id }),
+      listenerAddTrack: (t, id, tr) => post('/api/listener/add-track', { token: t, playlistId: id, track: tr }),
+      listenerRemoveTrack: (t, id, k) => post('/api/listener/remove-track', { token: t, playlistId: id, trackKey: k }),
+      listenerToggleFavorite: (t, tr) => post('/api/listener/toggle-favorite', { token: t, track: tr }),
+      listenerIsFavorite: (t, k) => get('/api/listener/is-favorite?token=' + encodeURIComponent(t) + '&trackKey=' + encodeURIComponent(k)),
+      listenerRecordPlay: (t, tr) => post('/api/listener/record-play', { token: t, track: tr }),
+    };
   }
 
   function pad2(n) { return String(n).length < 2 ? '0' + n : String(n); }
