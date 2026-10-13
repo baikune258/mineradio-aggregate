@@ -2203,6 +2203,20 @@ function updateStageLyrics3D(dt) {
     stageLyricTargetQuaternion(lyricCoverWorldQuat, layoutTiltX, layoutTiltY);
     stageLyrics.group.quaternion.copy(lyricTargetQuat);
   }
+  // 可切换的歌词文字动画（二改新增）：3D 视角 / 环绕 / 弹跳，叠加在既有布局之上
+  var fxMotionStyle = (lyricMotion && lyricMotion.style) || '';
+  if (fxMotionStyle === '3d') {
+    var ph3d = t * 0.00045;
+    stageLyrics.group.rotation.x = Math.sin(ph3d * 0.8) * 0.18;
+    stageLyrics.group.rotation.y = Math.sin(ph3d * 1.1 + 1.2) * 0.30;
+  } else if (fxMotionStyle === 'orbit') {
+    var phOrb = t * 0.0005;
+    stageLyrics.group.rotation.y = phOrb % (Math.PI * 2);
+    stageLyrics.group.position.z = lyricLayoutTarget.z + Math.sin(phOrb * 0.6) * 0.35;
+  } else if (fxMotionStyle === 'bounce') {
+    var phBnc = t * 0.0012;
+    stageLyrics.group.position.y = lyricLayoutTarget.y + Math.abs(Math.sin(phBnc)) * 0.24;
+  }
   function tickMesh(mesh, isCurrent) {
     if (!mesh) return false;
     var holdingForLyricReveal = false;

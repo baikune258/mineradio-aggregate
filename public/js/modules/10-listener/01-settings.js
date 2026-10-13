@@ -33,6 +33,9 @@
       '#mineradio-settings-panel .mr-sec{font-size:13px;font-weight:700;color:#cdd6ff;margin:16px 0 8px}',
       '#mineradio-settings-panel .mr-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px}',
       '#mineradio-settings-panel .mr-row-inline{display:flex;align-items:center;gap:6px}',
+      '#mineradio-settings-panel .mr-seg{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}',
+      '#mineradio-settings-panel .mr-seg-btn{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);color:#ddd;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit}',
+      '#mineradio-settings-panel .mr-seg-btn.active{background:linear-gradient(135deg,#2563eb,#38bdf8);border-color:transparent;color:#fff}',
       '#mineradio-settings-panel .mr-row .mr-label{flex:1}',
       '#mineradio-settings-panel .mr-btn{display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;color:#fff;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;margin:4px 6px 4px 0}',
       '#mineradio-settings-panel .mr-btn:hover{filter:brightness(1.1)}',
@@ -165,6 +168,30 @@
       };
       container.appendChild(row(label, sw));
     });
+    // 动画样式（可切换）
+    container.appendChild(row('歌词动画样式', (function () {
+      const seg = el('div', 'mr-seg');
+      const styles = [['float', '漂浮'], ['smooth', '柔滑'], ['glass', '玻璃'], ['shine', '线光'], ['glitch', '故障'], ['3d', '3D视角'], ['orbit', '环绕'], ['bounce', '弹跳']];
+      const current = (typeof normalizeLyricMotionStyle === 'function') ? normalizeLyricMotionStyle(fx.lyricMotionStyle) : (fx.lyricMotionStyle || 'float');
+      function refreshSeg() {
+        Array.prototype.forEach.call(seg.querySelectorAll('button'), function (b) {
+          b.classList.toggle('active', b.dataset.motion === current);
+        });
+      }
+      styles.forEach(function (item) {
+        const b = el('button', 'mr-seg-btn' + (item[0] === current ? ' active' : ''), item[1]);
+        b.dataset.motion = item[0];
+        b.onclick = function () {
+          if (typeof setLyricMotionStyle === 'function') setLyricMotionStyle(item[0]);
+          else fx.lyricMotionStyle = item[0];
+          if (typeof saveLyricLayout === 'function') saveLyricLayout({ syncDisk: true, user: true, reason: 'settingsLyricMotion' });
+          toast('歌词动画已切换：' + item[1]);
+          refreshSeg();
+        };
+        seg.appendChild(b);
+      });
+      return seg;
+    })()));
     // 颜色
     const colorRow = row('歌词颜色', (function () {
       const box = el('div', 'mr-row-inline');
