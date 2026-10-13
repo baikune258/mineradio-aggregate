@@ -1,0 +1,8 @@
+version: 2.2.8
+files:
+  - url: Mineradio-2.2.8-Setup.exe
+    sha512: +YMVde3FQicbETSOnC2phtF6hitc3j+Wydbu3Po9YwRjqn8JolrEgk6YffnqRhM9pnOhUbuFKi0X9zYdCUNjFg==
+    size: 116261399
+path: Mineradio-2.2.8-Setup.exe
+sha512: +YMVde3FQicbETSOnC2phtF6hitc3j+Wydbu3Po9YwRjqn8JolrEgk6YffnqRhM9pnOhUbuFKi0X9zYdCUNjFg==
+releaseDate: '2026-10-13T05:01:07.088Z'

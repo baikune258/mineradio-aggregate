@@ -1,0 +1,176 @@
+// 创作者专区（二改新增）：浏览已审核上架的作品并播放
+(function () {
+  'use strict';
+  var API = '/api/creator';
+
+  var panelEl = null;
+  var overlayEl = null;
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function toast(msg) {
+    if (typeof showToast === 'function') showToast(msg);
+    else if (typeof window.showToast === 'function') window.showToast(msg);
+  }
+  function isMemberActive() {
+    return typeof window.isMineradioMemberActive === 'function' && window.isMineradioMemberActive();
+  }
+
+  function panelStyles() {
+    if (document.getElementById('mr-browse-styles')) return;
+    var s = document.createElement('style');
+    s.id = 'mr-browse-styles';
+    s.textContent = [
+      '#mr-browse-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99996}',
+      '#mr-browse-panel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:420px;max-height:82vh;overflow-y:auto;background:#16161d;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:20px;z-index:99997;color:#eee;font-size:13px;box-shadow:0 18px 50px rgba(0,0,0,.5)}',
+      '#mr-browse-panel h3{margin:0 0 6px;font-size:16px;color:#fff}',
+      '.mb-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}',
+      '.mb-card{background:rgba(255,255,255,.05);border-radius:12px;padding:10px 12px;margin:8px 0;cursor:pointer;transition:background .15s}',
+      '.mb-card:hover{background:rgba(255,255,255,.1)}',
+      '.mb-badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:8px;margin-left:6px}',
+      '.mb-badge.vip{background:rgba(168,85,247,.25);color:#d8b4fe}',
+      '.mb-badge.free{background:rgba(148,163,184,.2);color:#cbd5e1}',
+      '.mb-close{position:absolute;right:14px;top:10px;background:none;border:none;color:#aaa;font-size:20px;cursor:pointer}',
+      '.mb-dim{color:#889}',
+      '.mb-play{margin-left:auto;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;color:#fff;border-radius:10px;padding:5px 12px;font-size:12px;cursor:pointer}',
+    ].join('\n');
+    document.head.appendChild(s);
+  }
+
+  function closePanel() {
+    if (overlayEl) { overlayEl.remove(); overlayEl = null; }
+    if (panelEl) { panelEl.remove(); panelEl = null; }
+  }
+
+  function openBrowse() {
+    if (panelEl) { panelEl.style.display = ''; if (overlayEl) overlayEl.style.display = ''; return; }
+    panelStyles();
+    overlayEl = el('div');
+    overlayEl.id = 'mr-browse-overlay';
+    overlayEl.onclick = closePanel;
+    document.body.appendChild(overlayEl);
+    panelEl = el('div');
+    panelEl.id = 'mr-browse-panel';
+    var closeBtn = el('button', 'mb-close', '×');
+    closeBtn.onclick = closePanel;
+    panelEl.appendChild(closeBtn);
+    panelEl.appendChild(el('h3', '', '创作者专区'));
+    panelEl.appendChild(el('div', 'mb-dim', '已上架的创作者原创作品'));
+    var listBox = el('div');
+    panelEl.appendChild(listBox);
+    listBox.appendChild(el('div', 'mb-dim', '加载中…'));
+    fetch(API + '/songs')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        listBox.innerHTML = '';
+        var songs = d.ok ? (d.songs || []) : [];
+        if (!songs.length) { listBox.appendChild(el('div', 'mb-dim', '暂无作品上架')); return; }
+        songs.forEach(function (s) {
+          var card = el('div', 'mb-card');
+          var head = el('div', 'mb-row');
+          var info = el('div');
+          var nameLine = el('div', '');
+          nameLine.appendChild(document.createTextNode(s.title + ' — ' + s.artist));
+          var badge = el('span', 'mb-badge ' + (s.memberOnly ? 'vip' : 'free'), s.memberOnly ? '会员' : '免费');
+          nameLine.appendChild(badge);
+          info.appendChild(nameLine);
+          info.appendChild(el('div', 'mb-dim', '创作者：' + s.creatorName + ' ｜ 播放 ' + (s.playsFree + s.playsMember) + ' 次'));
+          head.appendChild(info);
+          var playBtn = el('button', 'mb-play', '播放');
+          playBtn.onclick = function (ev) {
+            ev.stopPropagation();
+            playCreatorSong(s);
+          };
+          head.appendChild(playBtn);
+          card.appendChild(head);
+          card.onclick = function () { playCreatorSong(s); };
+          listBox.appendChild(card);
+        });
+      })
+      .catch(function () { listBox.innerHTML = ''; listBox.appendChild(el('div', 'mb-dim', '加载失败')); });
+    document.body.appendChild(panelEl);
+  }
+
+  function playCreatorSong(s) {
+    if (s.memberOnly && !isMemberActive()) {
+      toast('会员专属歌曲，请先激活会员');
+      if (typeof window.openMineradioMemberPanel === 'function') window.openMineradioMemberPanel();
+      return;
+    }
+    // 播放计数
+    try {
+      fetch(API + '/play', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ songId: s.id, isMember: isMemberActive() }),
+      }).catch(function () {});
+    } catch (_) {}
+    var song = {
+      name: s.title,
+      artist: s.artist,
+      localUrl: '/api/creator/audio/' + s.id,
+      localKey: 'creator-' + s.id,
+      memberOnly: s.memberOnly,
+      coverUrl: s.coverFile ? '/api/creator/cover/' + s.id : '',
+      provider: 'creator',
+    };
+    try {
+      if (typeof playQueue !== 'undefined' && Array.isArray(playQueue)) {
+        playQueue.push(song);
+        if (typeof playQueueAt === 'function') {
+          playQueueAt(playQueue.length - 1, { manual: true });
+          return;
+        }
+      }
+    } catch (_) {}
+    toast('播放失败：播放核心未就绪');
+  }
+
+  // "开始听歌"兜底：优先播放创作者专区已上架的免费歌（无需登录），没有则走平台每日推荐
+  function tryPlayCreatorFreeFallback() {
+    return fetch(API + '/songs')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var free = (d.ok && d.songs || []).filter(function (s) { return s.status === 'approved' && !s.memberOnly; });
+        if (!free.length) {
+          if (typeof playHomeDaily === 'function') return playHomeDaily();
+          return;
+        }
+        var queue = free.map(function (s) {
+          return {
+            name: s.title,
+            artist: s.artist,
+            localUrl: '/api/creator/audio/' + s.id,
+            localKey: 'creator-' + s.id,
+            memberOnly: false,
+            provider: 'creator',
+            coverUrl: s.coverFile ? '/api/creator/cover/' + s.id : '',
+          };
+        });
+        try {
+          playQueue = queue;
+          currentIdx = 0;
+          if (typeof safeRenderQueuePanel === 'function') safeRenderQueuePanel('creator-fallback');
+          if (typeof safeShelfRebuild === 'function') safeShelfRebuild('creator-fallback', true);
+          if (typeof forcePlaybackControlsInteractive === 'function') forcePlaybackControlsInteractive();
+          if (typeof playQueueAt === 'function') return playQueueAt(0).catch(function (e) { console.warn('[CreatorFallbackPlay]', e); });
+        } catch (e) {
+          console.warn('[CreatorFallback]', e);
+        }
+        if (typeof playHomeDaily === 'function') return playHomeDaily();
+        return undefined;
+      })
+      .catch(function () {
+        if (typeof playHomeDaily === 'function') return playHomeDaily();
+        return undefined;
+      });
+  }
+
+  window.openCreatorBrowse = openBrowse;
+  window.closeCreatorBrowse = closePanel;
+  window.tryPlayCreatorFreeFallback = tryPlayCreatorFreeFallback;
+})();
