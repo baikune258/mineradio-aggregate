@@ -13,6 +13,39 @@
   function setToken(t, name) { try { localStorage.setItem(TOKEN_KEY, t); localStorage.setItem(NAME_KEY, name); } catch (_) {} }
   function clearToken() { try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(NAME_KEY); } catch (_) {} }
 
+  // 二改：登录过的账号不用再登一遍——已登录听众账号时，自动复用进入创作者中心。
+  // 派生口令由听众账号 id 稳定生成（同一账号永远一致），服务器自动注册/登录创作者身份。
+  function listenerDerivedPassword(accountId) {
+    var base = String(accountId || '').replace(/[^a-z0-9]/gi, '');
+    return 'mr-auto-' + (base.slice(0, 20) || 'default');
+  }
+  function autoEnterWithListener() {
+    var ls = window._listenerAccountState;
+    if (!ls || !ls.loggedIn || !ls.account || !ls.account.id) return false;
+    var name = String(ls.account.name || '');
+    var pass = listenerDerivedPassword(ls.account.id);
+    var tryLogin = function () {
+      return fetch(API + '/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, password: pass }),
+      }).then(function (r) { return r.json(); });
+    };
+    return fetch(API + '/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, password: pass }),
+    }).then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.ok) { setToken(d.token, d.creator.name); refreshCenter(); return true; }
+        return tryLogin().then(function (l) {
+          if (l && l.ok) { setToken(l.token, l.creator.name); refreshCenter(); return true; }
+          return false;
+        });
+      })
+      .catch(function () { return false; });
+  }
+
   function el(tag, cls, text) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
@@ -83,8 +116,9 @@
     panelEl.appendChild(title);
     panelEl.appendChild(el('div', 'mr-sub', '上传你的原创歌曲，免费或会员定价，平台抽成 30%'));
     var token = getToken();
-    if (!token) { buildLoginBlock(panelEl); }
-    else { buildLoggedBlock(panelEl); }
+    if (token) { buildLoggedBlock(panelEl); }
+    else if (typeof autoEnterWithListener === 'function' && autoEnterWithListener()) { /* 正在用听众账号自动进入 */ }
+    else { buildLoginBlock(panelEl); }
   }
 
   function buildLoginBlock(root) {
@@ -123,6 +157,19 @@
       }).catch(function () { toast('网络异常'); });
     };
     root.appendChild(el('div', 'mr-card mr-dim', '提示：创作者账号与作品数据只保存在本机安装目录，上传即视为同意平台审核规则。'));
+    // 二改：已登录过我们自己的账号时，无需再单独注册/登录创作者账号
+    var ls = window._listenerAccountState;
+    if (ls && ls.loggedIn && ls.account && ls.account.name) {
+      var autoBtn = el('button', 'mr-btn primary', '用账号「' + ls.account.name + '」直接进入，无需再登');
+      autoBtn.style.width = '100%';
+      autoBtn.style.marginTop = '6px';
+      autoBtn.onclick = function () {
+        autoBtn.disabled = true;
+        autoBtn.textContent = '正在进入…';
+        autoEnterWithListener();
+      };
+      root.appendChild(autoBtn);
+    }
   }
 
   function buildLoggedBlock(root) {
@@ -234,9 +281,27 @@
           head.appendChild(badge);
           var pricing = el('span', 'mr-badge ' + (s.memberOnly ? 'vip' : 'free'), s.memberOnly ? '会员' : '免费');
           head.appendChild(pricing);
+          var playBtn = el('button', 'mr-btn primary', '试听');
+          head.appendChild(playBtn);
           card.appendChild(head);
           card.appendChild(el('div', 'mr-dim', '播放：免费 ' + s.playsFree + ' / 会员 ' + s.playsMember));
           listBox.appendChild(card);
+          playBtn.onclick = function () {
+            try {
+              var song = {
+                name: s.title,
+                artist: s.artist,
+                localUrl: '/api/creator/audio/' + s.id + '?token=' + encodeURIComponent(getToken()),
+                localKey: 'creator-' + s.id,
+                memberOnly: s.memberOnly,
+                provider: 'creator',
+              };
+              if (typeof playQueue !== 'undefined' && Array.isArray(playQueue)) {
+                playQueue.push(song);
+                if (typeof playQueueAt === 'function') playQueueAt(playQueue.length - 1, { manual: true });
+              } else toast('播放核心未就绪');
+            } catch (_) { toast('播放失败'); }
+          };
         });
       })
       .catch(function () { listBox.appendChild(el('div', 'mr-dim', '加载失败')); });

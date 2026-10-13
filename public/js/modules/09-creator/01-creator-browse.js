@@ -130,6 +130,181 @@
     toast('播放失败：播放核心未就绪');
   }
 
+  // "开始听歌"兜底：优先播放创作者专区已上架的免费歌（无需登录）；没有则平台热门搜索自动播放
+  function tryPlayCreatorFreeFallback() {
+    return fetch(API + '/songs')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var free = (d.ok && d.songs || []).filter(function (s) { return s.status === 'approved' && !s.memberOnly; });
+        if (!free.length) return playHotSearchFallback();
+        var queue = free.map(function (s) {
+          return {
+            name: s.title,
+            artist: s.artist,
+            localUrl: '/api/creator/audio/' + s.id,
+            localKey: 'creator-' + s.id,
+            memberOnly: false,
+            provider: 'creator',
+            coverUrl: s.coverFile ? '/api/creator/cover/' + s.id : '',
+          };
+        });
+        return playQueueList(queue, 'creator-fallback');
+      })
+      .catch(function () { return playHotSearchFallback(); });
+  }
+
+  function playQueueList(queue, reason) {
+    try {
+      if (typeof playQueue === 'undefined' || !Array.isArray(playQueue)) return undefined;
+      playQueue = queue;
+      currentIdx = 0;
+      if (typeof safeRenderQueuePanel === 'function') safeRenderQueuePanel(reason || 'home-fallback');
+      if (typeof safeShelfRebuild === 'function') safeShelfRebuild(reason || 'home-fallback', true);
+      if (typeof forcePlaybackControlsInteractive === 'function') forcePlaybackControlsInteractive();
+      if (typeof playQueueAt === 'function') {
+        return playQueueAt(0).then(function () { return true; }).catch(function () { return false; });
+      }
+      return true;
+    } catch (_) { return undefined; }
+  }
+
+  // 每日推荐兜底（游客可用）：关键词池按日期轮换 + 结果随机打乱 + 当日去重，
+  // 保证像汽水音乐一样每天自动换一批新歌，同一天内不重复。
+  var HOT_KEYWORD_POOL = [
+    '热歌', '纯音乐', '轻音乐', '经典老歌', '民谣', '治愈系', '翻唱',
+    '摇滚', '电子', '爵士', '钢琴曲', '古风', '粤语歌', '英文歌',
+    '动漫音乐', '游戏音乐', '冥想', '咖啡馆', '夜跑', '怀旧', '清新'
+  ];
+  var DAY_KEY = 'mineradio-daily-played';
+  function dailySeed() {
+    var d = new Date();
+    var key = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+    var h = 2166136261;
+    for (var i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = (h * 16777619) >>> 0; }
+    return { key: key, hash: h };
+  }
+  function pickDailyKeywords(hash) {
+    var pool = HOT_KEYWORD_POOL;
+    var start = hash % pool.length;
+    var picks = [];
+    for (var i = 0; i < 4; i++) {
+      var idx = (start + i * 3) % pool.length;
+      if (picks.indexOf(pool[idx]) === -1) picks.push(pool[idx]);
+    }
+    return picks;
+  }
+  function dailyPlayedIds() {
+    var seed = dailySeed();
+    try {
+      var raw = JSON.parse(localStorage.getItem(DAY_KEY) || '{}');
+      return (raw && raw.key === seed.key && Array.isArray(raw.ids)) ? raw.ids : [];
+    } catch (_) { return []; }
+  }
+  function rememberDailyPlayed(ids) {
+    var seed = dailySeed();
+    try { localStorage.setItem(DAY_KEY, JSON.stringify({ key: seed.key, ids: ids })); } catch (_) {}
+  }
+  function shuffled(list, seedHash) {
+    var arr = list.slice();
+    var s = seedHash || 1;
+    for (var i = arr.length - 1; i > 0; i--) {
+      s = (s * 1103515245 + 12345) >>> 0;
+      var j = s % (i + 1);
+      var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+  }
+  function playHotSearchFallback() {
+    return fetchDailyHotFreeSongs([], 5).then(function (fresh) {
+      if (!fresh || !fresh.length) return undefined;
+      var queue = fresh.map(function (s) {
+        return {
+          name: s.name || '未知歌曲',
+          artist: String(s.artist || '').slice(0, 60),
+          source: 'netease',
+          id: String(s.id || ''),
+          cover: s.cover || '',
+          memberOnly: false,
+        };
+      });
+      return playQueueList(queue, 'home-daily-fresh');
+    });
+  }
+
+  // 无限续播：队列末尾自动追加一批新的每日推荐免费歌（去重：当日已播 + 队列已有）
+  function appendDailyHotSongs() {
+    var existing = {};
+    (function () {
+      try {
+        var q = (typeof playQueue !== 'undefined' && Array.isArray(playQueue)) ? playQueue : [];
+        q.forEach(function (s) { if (s && s.id) existing[String(s.id)] = true; });
+      } catch (_) {}
+    })();
+    return fetchDailyHotFreeSongs(existing, 5).then(function (fresh) {
+      if (!fresh || !fresh.length) return 0;
+      var newSongs = fresh.map(function (s) {
+        return {
+          name: s.name || '未知歌曲',
+          artist: String(s.artist || '').slice(0, 60),
+          source: 'netease',
+          id: String(s.id || ''),
+          cover: s.cover || '',
+          memberOnly: false,
+        };
+      });
+      try {
+        if (typeof playQueue !== 'undefined' && Array.isArray(playQueue)) {
+          playQueue.push.apply(playQueue, newSongs);
+          if (typeof safeRenderQueuePanel === 'function') safeRenderQueuePanel('home-daily-append');
+          if (typeof safeShelfRebuild === 'function') safeShelfRebuild('home-daily-append');
+          return newSongs.length;
+        }
+      } catch (_) {}
+      return 0;
+    });
+  }
+
+  // 公共：按日期轮换关键词搜索免费歌（排除指定 id 集合），返回打乱后的新歌列表
+  function fetchDailyHotFreeSongs(excludeIds, limit) {
+    var seed = dailySeed();
+    var keywords = pickDailyKeywords(seed.hash);
+    var played = dailyPlayedIds();
+    var exclude = {};
+    (Array.isArray(excludeIds) ? excludeIds : []).forEach(function (id) { if (id) exclude[String(id)] = true; });
+    var collected = [];
+    var chain = Promise.resolve();
+    keywords.forEach(function (kw) {
+      chain = chain.then(function () {
+        if (collected.length >= (limit || 5)) return undefined;
+        return fetch('/api/search?keywords=' + encodeURIComponent(kw) + '&limit=20')
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            var songs = (d && d.songs) || [];
+            songs.forEach(function (s) {
+              if (collected.length >= (limit || 5)) return;
+              if (Number(s.fee) !== 0) return;
+              var sid = String(s.id || '');
+              if (played.indexOf(sid) !== -1 || exclude[sid]) return;
+              collected.push(s);
+            });
+          })
+          .catch(function () { /* 单关键词失败继续下一个 */ });
+      });
+    });
+    return chain.then(function () {
+      if (!collected.length) {
+        // 当天全听过了：清空当日记录，保证一定有新歌
+        try { localStorage.removeItem(DAY_KEY); } catch (_) {}
+        return [];
+      }
+      var fresh = shuffled(collected, seed.hash).slice(0, limit || 5);
+      rememberDailyPlayed(played.concat(fresh.map(function (s) { return String(s.id); })));
+      return fresh;
+    });
+  }
+
   window.openCreatorBrowse = openBrowse;
   window.closeCreatorBrowse = closePanel;
+  window.tryPlayCreatorFreeFallback = tryPlayCreatorFreeFallback;
+  window.appendDailyHotSongs = appendDailyHotSongs;
 })();

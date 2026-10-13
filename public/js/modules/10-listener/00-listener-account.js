@@ -17,7 +17,30 @@
   let panelEl = null;
 
   function listenerApi() {
-    return window.desktopWindow || {};
+    const dw = window.desktopWindow || {};
+    if (dw && typeof dw.listenerRegister === 'function' && typeof dw.listenerStatus === 'function') return dw;
+    // 浏览器/无 IPC 环境：走本地服务端账号路由（桌面版内嵌服务同样可用）
+    const post = (pn, payload) => fetch(pn, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload || {})
+    }).then(r => r.json());
+    const get = (pn) => fetch(pn).then(r => r.json());
+    return {
+      listenerRegister: (p) => post('/api/listener/register', p),
+      listenerLogin: (p) => post('/api/listener/login', p),
+      listenerLogout: (t) => post('/api/listener/logout', { token: t }),
+      listenerStatus: (t) => get('/api/listener/status?token=' + encodeURIComponent(t)),
+      listenerMemberBind: (t, e) => post('/api/listener/member-bind', { token: t, expireAt: e }),
+      listenerAddPlaylist: (t, n) => post('/api/listener/add-playlist', { token: t, name: n }),
+      listenerRenamePlaylist: (t, id, n) => post('/api/listener/rename-playlist', { token: t, playlistId: id, name: n }),
+      listenerDeletePlaylist: (t, id) => post('/api/listener/delete-playlist', { token: t, playlistId: id }),
+      listenerAddTrack: (t, id, tr) => post('/api/listener/add-track', { token: t, playlistId: id, track: tr }),
+      listenerRemoveTrack: (t, id, k) => post('/api/listener/remove-track', { token: t, playlistId: id, trackKey: k }),
+      listenerToggleFavorite: (t, tr) => post('/api/listener/toggle-favorite', { token: t, track: tr }),
+      listenerIsFavorite: (t, k) => get('/api/listener/is-favorite?token=' + encodeURIComponent(t) + '&trackKey=' + encodeURIComponent(k)),
+      listenerRecordPlay: (t, tr) => post('/api/listener/record-play', { token: t, track: tr }),
+    };
   }
 
   function pad2(n) { return String(n).length < 2 ? '0' + n : String(n); }
@@ -96,6 +119,14 @@
       '#mineradio-listener-panel .mr-status{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:rgba(120,140,255,.12);margin-bottom:14px}',
       '#mineradio-listener-panel .mr-dot{width:8px;height:8px;border-radius:50%;background:#5d6b8f}',
       '#mineradio-listener-panel .mr-dot.on{background:#34d399;box-shadow:0 0 8px #34d399}',
+      '#mineradio-listener-panel .mr-profile{display:flex;align-items:center;gap:14px;padding:14px;border-radius:14px;background:linear-gradient(135deg,rgba(14,165,233,.16),rgba(168,85,247,.14));border:1px solid rgba(120,140,255,.25);margin-bottom:12px}',
+      '#mineradio-listener-panel .mr-avatar{width:52px;height:52px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;background:linear-gradient(135deg,#0ea5e9,#a855f7);box-shadow:0 0 14px rgba(14,165,233,.5);user-select:none}',
+      '#mineradio-listener-panel .mr-profile-main{flex:1;min-width:0}',
+      '#mineradio-listener-panel .mr-profile-name{font-size:17px;font-weight:800;color:#fff;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '#mineradio-listener-panel .mr-profile-stats{font-size:12px;color:#aab4d8;display:flex;gap:10px;flex-wrap:wrap}',
+      '#mineradio-listener-panel .mr-profile-stats b{color:#e8ecff;font-weight:700}',
+      '#mineradio-listener-panel .mr-profile-badge{flex:none;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;white-space:nowrap}',
+      '#mineradio-listener-panel .mr-profile-badge.off{background:rgba(255,255,255,.1);color:#9aa3c7;border:1px solid rgba(255,255,255,.15)}',
       '#mineradio-listener-panel .mr-field{margin-bottom:10px}',
       '#mineradio-listener-panel .mr-field label{display:block;font-size:12px;color:#9aa3c7;margin-bottom:4px}',
       '#mineradio-listener-panel input[type=text],#mineradio-listener-panel input[type=password],#mineradio-listener-panel textarea{width:100%;box-sizing:border-box;background:rgba(255,255,255,.07);border:1px solid rgba(120,140,255,.3);border-radius:8px;color:#fff;padding:8px 10px;font-size:14px;outline:none;font-family:inherit}',
@@ -168,13 +199,29 @@
 
   function buildLoggedInView(container) {
     container.innerHTML = '';
+    // 个人主页头部（像汽水音乐）：头像 / 昵称 / 统计 / 会员徽章
+    const isMember = Number(accountState.memberUntil) > Date.now();
+    const profile = el('div', 'mr-profile');
+    const avatar = el('div', 'mr-avatar');
+    avatar.textContent = String(accountState.account.name || 'M').slice(0, 1).toUpperCase();
+    const main = el('div', 'mr-profile-main');
+    main.appendChild(el('div', 'mr-profile-name', accountState.account.name || ''));
+    const stats = el('div', 'mr-profile-stats');
+    const statPl = el('span'); statPl.innerHTML = '<b>' + (accountState.account.playlists || []).length + '</b> 歌单';
+    const statFav = el('span'); statFav.innerHTML = '<b>' + (accountState.account.favorites || []).length + '</b> 收藏';
+    const statRec = el('span'); statRec.innerHTML = '<b>' + (accountState.account.recentPlays || []).length + '</b> 收听';
+    stats.appendChild(statPl); stats.appendChild(statFav); stats.appendChild(statRec);
+    main.appendChild(stats);
+    profile.appendChild(avatar);
+    profile.appendChild(main);
+    profile.appendChild(el('div', 'mr-profile-badge' + (isMember ? '' : ' off'), isMember ? 'VIP 会员' : '未开通会员'));
+    container.appendChild(profile);
+
     const statusRow = el('div', 'mr-status');
     const dot = el('span', 'mr-dot on');
     const text = el('span');
     text.textContent = '已登录：' + (accountState.account.name || '') +
-      (Number(accountState.memberUntil) > Date.now()
-        ? ' · 账号会员至 ' + expireText(accountState.memberUntil)
-        : ' · 账号未绑定会员');
+      (isMember ? ' · 账号会员至 ' + expireText(accountState.memberUntil) : ' · 账号未绑定会员');
     statusRow.appendChild(dot);
     statusRow.appendChild(text);
     container.appendChild(statusRow);
@@ -446,7 +493,12 @@
       const password = passInput.value;
       if (!name) { toast('请输入昵称'); return; }
       if (!password) { toast('请输入口令'); return; }
-      const fn = mode === 'register' ? listenerApi().listenerRegister : listenerApi().listenerLogin;
+      const api = listenerApi();
+      const fn = mode === 'register' ? api.listenerRegister : api.listenerLogin;
+      if (typeof fn !== 'function') {
+        toast('账号功能请在桌面版（安装包）中使用，浏览器预览不支持');
+        return;
+      }
       fn({ name: name, password: password })
         .then(function (res) {
           if (res && res.ok) {

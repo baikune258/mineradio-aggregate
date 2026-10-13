@@ -643,6 +643,20 @@ function nextTrack(userInitiated) {
     }).finally(forcePlaybackControlsInteractive);
     return;
   }
+  // 二改：无限续播——队列播到末尾时先自动追加一批每日推荐新歌，再切下一首
+  if (currentIdx >= playQueue.length - 1 && typeof window.appendDailyHotSongs === 'function') {
+    Promise.resolve(window.appendDailyHotSongs()).then(function (added) {
+      var opts = userInitiated ? { manual: true, suppressPlayFailureNotice: true } : { suppressPlayFailureNotice: true };
+      if (playMode === 'shuffle') opts.skipShuffleOrder = true;
+      if (added > 0 && playQueue.length > currentIdx + 1) {
+        currentIdx = currentIdx + 1;
+      } else {
+        currentIdx = (currentIdx + 1) % playQueue.length;
+      }
+      return playQueueAt(currentIdx, opts);
+    }).finally(forcePlaybackControlsInteractive);
+    return;
+  }
   if (playMode === 'shuffle') currentIdx = currentIdx < 0 ? 0 : (currentIdx + 1) % playQueue.length;
   else currentIdx = (currentIdx + 1) % playQueue.length;
   var opts = userInitiated ? { manual: true, suppressPlayFailureNotice: true } : { suppressPlayFailureNotice: true };
