@@ -192,6 +192,27 @@
       });
       return seg;
     })()));
+    // 字号 / 行距（可自定义）
+    (function () {
+      function addScaleSlider(key, label, min, max) {
+        const wrap = el('div', 'fx-slider');
+        const lab = el('label', '', label);
+        const input = el('input');
+        input.type = 'range'; input.min = String(min); input.max = String(max); input.step = '0.05';
+        input.value = String(clampRange(Number(fx[key]) || 1, min, max));
+        const out = el('output', '', Math.round((Number(fx[key]) || 1) * 100) + '%');
+        input.oninput = function () {
+          fx[key] = clampRange(Number(input.value) || 1, min, max);
+          out.textContent = Math.round(fx[key] * 100) + '%';
+          if (typeof saveLyricLayout === 'function') saveLyricLayout({ syncDisk: true, user: true, reason: 'settingsLyricSize' });
+          if (typeof refreshCurrentLyricStyle === 'function') refreshCurrentLyricStyle();
+        };
+        wrap.appendChild(lab); wrap.appendChild(input); wrap.appendChild(out);
+        container.appendChild(wrap);
+      }
+      addScaleSlider('lyricFontScale', '歌词字号', 0.7, 1.5);
+      addScaleSlider('lyricSpacingScale', '歌词行距', 0.7, 1.5);
+    })();
     // 颜色
     const colorRow = row('歌词颜色', (function () {
       const box = el('div', 'mr-row-inline');

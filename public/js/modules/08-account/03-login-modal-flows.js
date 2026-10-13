@@ -572,6 +572,14 @@ async function confirmCookieExportPrompt() {
 }
 
 async function showLoginModal(opts) {
+  // 二改：平台账号登录已停用，一律引导使用 Mineradio 自有账号（听众账号）
+  try {
+    if (typeof window.openListenerAccountPanel === 'function') {
+      window.openListenerAccountPanel();
+      if (typeof window.showToast === 'function') window.showToast('平台账号登录已停用，请使用 Mineradio 账号');
+      return;
+    }
+  } catch (_) {}
   opts = opts || {};
   loginProvider = opts.provider ? normalizeLoginProviderKey(opts.provider) : 'netease';
   var modal = document.getElementById('login-modal');

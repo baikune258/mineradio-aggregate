@@ -18,8 +18,11 @@ function primeLyricMeshOpacity(mesh, amount) {
 }
 
 function stableStageLyricRowMaskLayout() {
-  var fontSize = 128;
-  var lineHeightFactor = typeof lyricLineHeightFactor === 'function' ? lyricLineHeightFactor() : 1.08;
+  var lfx = (typeof fx !== 'undefined' && fx) || {};
+  var fontScale = Number(lfx.lyricFontScale) || 1;
+  var spacingScale = Number(lfx.lyricSpacingScale) || 1;
+  var fontSize = 128 * fontScale;
+  var lineHeightFactor = (typeof lyricLineHeightFactor === 'function' ? lyricLineHeightFactor() : 1.08) * spacingScale;
   return { fontSize: fontSize, lineHeight: fontSize * lineHeightFactor };
 }
 

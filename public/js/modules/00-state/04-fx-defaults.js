@@ -12,6 +12,8 @@ var fxDefaults = {
   cinemaShake: 0.5,
   depth: 0.2,
   coverResolution: 1.55,
+  lyricFontScale: 1.0,      // 歌词字号倍率（0.7~1.5）
+  lyricSpacingScale: 1.0,   // 歌词行距倍率（0.7~1.5）
   point: 1.0, speed: 1.0, twist: 0.0, color: 1.10, scatter: 0.0, bgFade: 0.20,
   bloomStrength: 0.62,
   lyricGlowStrength: 0.28,

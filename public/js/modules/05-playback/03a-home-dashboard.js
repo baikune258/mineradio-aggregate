@@ -616,6 +616,11 @@ function resumeHomeDashboardPlayback() {
     Promise.resolve(playHomeRecent(recent)).catch(function (error) { console.warn('[HomeDashboardRecent]', error); });
     return;
   }
+  // 二改：未登录平台时也保证"开始听歌"自动出歌 —— 先播创作者专区免费歌，再走每日推荐/搜索兜底
+  if (typeof tryPlayCreatorFreeFallback === 'function') {
+    Promise.resolve(tryPlayCreatorFreeFallback()).catch(function (error) { console.warn('[HomeCreatorFallback]', error); });
+    return;
+  }
   if (typeof playHomeDaily === 'function') playHomeDaily();
 }
 

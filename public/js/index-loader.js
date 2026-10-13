@@ -104,6 +104,8 @@
     'js/modules/09-creator/00-creator-center.js',
     'js/modules/09-creator/01-creator-browse.js',
     'js/modules/09-creator/02-platform-admin.js',
+    'js/modules/10-listener/00-listener-account.js',
+    'js/modules/10-listener/01-settings.js',
     'js/modules/09-idle-toast-libraries.js',
     'js/modules/10-shell/00-gesture-control.js',
     'js/modules/10-shell/01-viewport-resize-shortcuts.js',

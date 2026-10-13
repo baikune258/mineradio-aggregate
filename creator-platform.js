@@ -223,6 +223,31 @@ class CreatorPlatform {
     return song || null;
   }
 
+  updateSong(id, creatorId, fields) {
+    fields = fields || {};
+    const store = this._songs();
+    const song = store.songs.find(s => s.id === id && s.creatorId === creatorId);
+    if (!song) return { ok: false, error: '作品不存在或无权编辑' };
+    if (fields.title !== undefined) {
+      const t = String(fields.title || '').trim().slice(0, 80);
+      if (!t) return { ok: false, error: '歌曲名不能为空' };
+      song.title = t;
+    }
+    if (fields.artist !== undefined) song.artist = String(fields.artist || '').trim().slice(0, 60) || '佚名';
+    if (fields.memberOnly !== undefined) song.memberOnly = !!fields.memberOnly;
+    if (fields.lyricText !== undefined) song.lyricText = String(fields.lyricText || '').slice(0, 20000);
+    if (fields.audioFile) {
+      // 重传了音频：内容有变，回到待审核重新走流程
+      song.audioFile = fields.audioFile;
+      song.audioSize = Number(fields.audioSize) || song.audioSize || 0;
+      song.audioExt = String(fields.audioExt || song.audioExt || '').replace(/[^a-z0-9.]/gi, '');
+      song.status = 'pending';
+    }
+    if (fields.coverFile) song.coverFile = fields.coverFile;
+    this._saveSongs(store);
+    return { ok: true, song: this._publicSong(song) };
+  }
+
   audioPath(song) {
     if (!song || !song.audioFile) return '';
     const p = path.join(this.filesDir, song.audioFile);

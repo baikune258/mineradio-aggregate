@@ -1044,6 +1044,13 @@ async function playQueueAt(idx, opts) {
   opts = opts || {};
   if (typeof beginSourceFallbackPlaybackInvocation === 'function' && !beginSourceFallbackPlaybackInvocation(opts)) return false;
   if (idx < 0 || idx >= playQueue.length) return false;
+  // 二改：播放开始时向已登录的听众账号记录收听（个人收听记录）
+  if (typeof window !== 'undefined' && typeof window.notifyListenerPlaybackStart === 'function') {
+    try {
+      var _trackForListener = playQueue[idx];
+      if (_trackForListener) window.notifyListenerPlaybackStart(_trackForListener);
+    } catch (_) {}
+  }
   if (typeof ensurePlaylistQueueHydratedAhead === 'function') ensurePlaylistQueueHydratedAhead(idx);
   var albumGaplessHandoff = !!(opts.albumGaplessHandoff && opts.preloadedAudio && opts.preloadedData);
   var albumGaplessMixed = !!(albumGaplessHandoff && opts.albumGaplessMixed);

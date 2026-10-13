@@ -199,7 +199,14 @@ async function playHomeDaily() {
   homeSuppressed = false;
   setHomeControlsLocked(false);
   if (!hasAnyPlatformLogin() && !homeDiscoverState.loggedIn) {
-    showLoginModal({ source: 'home-daily' });
+    // 二改：平台登录已停用，未登录时自动播放创作者免费歌 / 平台热门歌
+    if (typeof window.tryPlayCreatorFreeFallback === 'function') {
+      try {
+        const played = await window.tryPlayCreatorFreeFallback();
+        if (played) return;
+      } catch (_) {}
+    }
+    runHomeSearch('每日推荐');
     return;
   }
   await waitForHomeDiscoverIdle();

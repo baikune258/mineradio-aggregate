@@ -7213,6 +7213,71 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // 编辑作品：改标题/歌手/歌词/会员标记，可重传音频与封面（重传音频后回到待审核）
+    if (pn === '/api/creator/update-song' && req.method === 'POST') {
+      const bdMatch = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(ct);
+      if (!bdMatch) { sendJSON(res, { ok: false, error: '上传格式不正确' }, 400); return; }
+      const boundary = (bdMatch[1] || bdMatch[2] || '').trim();
+      const tmpDir = path.join(creatorPlatform.dataDir, 'tmp');
+      fs.mkdirSync(tmpDir, { recursive: true });
+      const parsed = await multipartParse(req, boundary, tmpDir);
+      if (parsed.error) { sendJSON(res, { ok: false, error: parsed.error.message || '编辑失败' }, 400); return; }
+      const user = creatorPlatform.resolveToken(String(parsed.fields.token || ''));
+      if (!user) { sendJSON(res, { ok: false, error: '登录已失效，请重新登录' }, 401); return; }
+      const songId = String(parsed.fields.songId || '');
+      const current = creatorPlatform.getSong(songId);
+      if (!current || current.creatorId !== user.id) { sendJSON(res, { ok: false, error: '作品不存在或无权编辑' }, 403); return; }
+      const fields = {
+        title: parsed.fields.title,
+        artist: parsed.fields.artist,
+        memberOnly: parsed.fields.memberOnly === '1' || parsed.fields.memberOnly === 'true',
+        lyricText: parsed.fields.lyricText,
+      };
+      const audio = parsed.files.audio;
+      if (audio && audio.tempPath) {
+        const extMatch = /\.([a-z0-9]+)$/i.exec(audio.filename || '');
+        const ext = extMatch ? extMatch[1].toLowerCase() : '';
+        const ALLOWED_AUDIO_EXT = ['mp3', 'flac', 'wav', 'm4a', 'ogg', 'aac'];
+        if (!ALLOWED_AUDIO_EXT.includes(ext)) {
+          try { fs.unlinkSync(audio.tempPath); } catch (_) {}
+          sendJSON(res, { ok: false, error: '音频格式仅支持 mp3 / flac / wav / m4a / ogg / aac' }, 400);
+          return;
+        }
+        if (audio.size > 500 * 1024 * 1024) {
+          try { fs.unlinkSync(audio.tempPath); } catch (_) {}
+          sendJSON(res, { ok: false, error: '音频超过 500MB 限制' }, 400);
+          return;
+        }
+        // 先落盘新音频，成功后再清理旧文件
+        const audioFile = songId + '.' + ext;
+        fs.renameSync(audio.tempPath, path.join(creatorPlatform.filesDir, audioFile));
+        fields.audioFile = audioFile;
+        fields.audioSize = audio.size;
+        fields.audioExt = ext;
+        try {
+          const oldPath = current.audioFile && path.join(creatorPlatform.filesDir, current.audioFile);
+          if (oldPath && oldPath !== path.join(creatorPlatform.filesDir, audioFile) && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        } catch (_) {}
+      }
+      const cover = parsed.files.cover;
+      if (cover && cover.tempPath) {
+        const cExtMatch = /\.([a-z0-9]+)$/i.exec(cover.filename || '');
+        const cExt = cExtMatch ? cExtMatch[1].toLowerCase() : 'jpg';
+        const coverFile = songId + '.' + (['jpg', 'jpeg', 'png', 'webp'].includes(cExt) ? cExt : 'jpg');
+        try {
+          fs.renameSync(cover.tempPath, path.join(creatorPlatform.coversDir, coverFile));
+          fields.coverFile = coverFile;
+          try {
+            const oldPath = current.coverFile && path.join(creatorPlatform.coversDir, current.coverFile);
+            if (oldPath && oldPath !== path.join(creatorPlatform.coversDir, coverFile) && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+          } catch (_) {}
+        } catch (_) { try { fs.unlinkSync(cover.tempPath); } catch (_) {} }
+      }
+      const updated = creatorPlatform.updateSong(songId, user.id, fields);
+      sendJSON(res, updated, updated.ok ? 200 : 400);
+      return;
+    }
+
     // 音频流：已审核可播；未审核仅本人可播
     const audioMatch = /^\/api\/creator\/audio\/([^/]+)$/.exec(pn);
     if (audioMatch && req.method === 'GET') {

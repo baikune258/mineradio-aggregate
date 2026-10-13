@@ -331,9 +331,73 @@
           head.appendChild(pricing);
           var playBtn = el('button', 'mr-btn primary', '试听');
           head.appendChild(playBtn);
+          var editBtn = el('button', 'mr-btn ghost', '编辑');
+          head.appendChild(editBtn);
           card.appendChild(head);
           card.appendChild(el('div', 'mr-dim', '播放：免费 ' + s.playsFree + ' / 会员 ' + s.playsMember));
           listBox.appendChild(card);
+          // 编辑作品（内联展开）
+          var editBox = null;
+          var editOpen = false;
+          editBtn.onclick = function () {
+            editOpen = !editOpen;
+            editBtn.textContent = editOpen ? '收起' : '编辑';
+            if (editOpen) {
+              if (!editBox) {
+                editBox = el('div', 'mr-card');
+                editBox.style.marginTop = '8px';
+                const tInput = el('input', 'mr-input'); tInput.value = s.title; tInput.placeholder = '歌曲名（必填）';
+                const aInput = el('input', 'mr-input'); aInput.value = s.artist || ''; aInput.placeholder = '歌手名';
+                const lInput = el('textarea', 'mr-input'); lInput.value = s.lyricText || ''; lInput.placeholder = '歌词（可选）'; lInput.style.minHeight = '60px';
+                const pRow = el('div', 'mr-row');
+                const freeR = el('label', 'mr-dim'); freeR.innerHTML = '<input type="radio" name="mr-edit-pricing-' + s.id + '" value="free"' + (!s.memberOnly ? ' checked' : '') + '> 免费';
+                const vipR = el('label', 'mr-dim'); vipR.innerHTML = '<input type="radio" name="mr-edit-pricing-' + s.id + '" value="vip"' + (s.memberOnly ? ' checked' : '') + '> 会员专属';
+                pRow.appendChild(freeR); pRow.appendChild(vipR);
+                var newAudio = null;
+                const aInputF = el('input', 'mr-input'); aInputF.type = 'file'; aInputF.accept = 'audio/*';
+                aInputF.onchange = function () { if (aInputF.files && aInputF.files[0]) { newAudio = aInputF.files[0]; aHint.textContent = '将替换音频：' + newAudio.name; } };
+                const aHint = el('div', 'mr-dim', '重传音频可选（替换后需重新审核）');
+                const cInputF = el('input', 'mr-input'); cInputF.type = 'file'; cInputF.accept = 'image/*';
+                const saveBtn = el('button', 'mr-btn primary', '保存修改');
+                const cancelBtn = el('button', 'mr-btn ghost', '取消');
+                saveBtn.onclick = function () {
+                  if (!tInput.value.trim()) { toast('请填写歌曲名'); return; }
+                  saveBtn.disabled = true; saveBtn.textContent = '保存中…';
+                  const fd = new FormData();
+                  fd.append('token', getToken());
+                  fd.append('songId', s.id);
+                  fd.append('title', tInput.value.trim());
+                  fd.append('artist', aInput.value.trim());
+                  fd.append('memberOnly', document.querySelector('input[name="mr-edit-pricing-' + s.id + '"]:checked').value === 'vip' ? '1' : '0');
+                  fd.append('lyricText', lInput.value || '');
+                  if (newAudio) fd.append('audio', newAudio);
+                  if (cInputF.files && cInputF.files[0]) fd.append('cover', cInputF.files[0]);
+                  const ctrl = new AbortController();
+                  const timer = setTimeout(function () { ctrl.abort(); }, 120000);
+                  fetch(API + '/update-song', { method: 'POST', body: fd, signal: ctrl.signal })
+                    .then(function (r) { clearTimeout(timer); return r.json(); })
+                    .then(function (d) {
+                      saveBtn.disabled = false; saveBtn.textContent = '保存修改';
+                      if (d.ok) { toast(newAudio ? '已保存，音频变更需重新审核' : '已保存'); refreshCenter(); }
+                      else toast(d.error || '保存失败');
+                    })
+                    .catch(function (e) {
+                      clearTimeout(timer);
+                      saveBtn.disabled = false; saveBtn.textContent = '保存修改';
+                      toast((e && e.name === 'AbortError') ? '保存超时，请重试' : '保存失败，请重试');
+                    });
+                };
+                cancelBtn.onclick = function () { editBox.style.display = 'none'; editOpen = false; editBtn.textContent = '编辑'; };
+                editBox.appendChild(el('div', 'mr-dim', '编辑标题 / 歌手 / 歌词 / 收费设置'));
+                editBox.appendChild(tInput); editBox.appendChild(aInput); editBox.appendChild(lInput);
+                editBox.appendChild(pRow); editBox.appendChild(aInputF); editBox.appendChild(aHint); editBox.appendChild(cInputF);
+                const btnRow = el('div', 'mr-row'); btnRow.appendChild(saveBtn); btnRow.appendChild(cancelBtn);
+                editBox.appendChild(btnRow);
+                card.appendChild(editBox);
+              }
+              editBox.style.display = '';
+            } else if (editBox) { editBox.style.display = 'none'; }
+          };
           playBtn.onclick = function () {
             try {
               var song = {
