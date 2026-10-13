@@ -117,36 +117,43 @@
   function panelStyles() {
     const style = document.createElement('style');
     style.textContent = [
-      '#mineradio-listener-panel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:440px;max-width:92vw;max-height:84vh;overflow:auto;background:rgba(16,18,26,.98);border:1px solid rgba(120,140,255,.35);border-radius:16px;padding:22px 24px;color:#e8ecff;font-family:inherit;font-size:14px;z-index:99999;box-shadow:0 18px 60px rgba(0,0,0,.65)}',
+      '#mineradio-listener-panel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:460px;max-width:92vw;max-height:84vh;overflow:auto;background:linear-gradient(112deg,rgba(72,74,76,.72),rgba(24,27,30,.80) 48%,rgba(8,12,14,.84));backdrop-filter:blur(18px) saturate(1.5);-webkit-backdrop-filter:blur(18px) saturate(1.5);border:1px solid rgba(0,245,212,.28);border-radius:18px;padding:0 0 22px;color:#e8ecf3;font-family:inherit;font-size:14px;z-index:99999;box-shadow:0 22px 64px rgba(0,0,0,.60),0 0 34px rgba(0,245,212,.06),inset 0 1px 0 rgba(255,255,255,.14)}',
+      '#mineradio-listener-panel .mr-panel-inner{padding:0 24px}',
       '#mineradio-listener-panel h3{margin:0 0 4px;font-size:18px;font-weight:700;color:#fff}',
       '#mineradio-listener-panel .mr-sub{color:#9aa3c7;font-size:12px;margin-bottom:16px}',
-      '#mineradio-listener-panel .mr-status{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:rgba(120,140,255,.12);margin-bottom:14px}',
+      '#mineradio-listener-panel .mr-status{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:rgba(0,245,212,.10);border:1px solid rgba(0,245,212,.18);margin-bottom:14px}',
       '#mineradio-listener-panel .mr-dot{width:8px;height:8px;border-radius:50%;background:#5d6b8f}',
-      '#mineradio-listener-panel .mr-dot.on{background:#34d399;box-shadow:0 0 8px #34d399}',
-      '#mineradio-listener-panel .mr-profile{display:flex;align-items:center;gap:14px;padding:14px;border-radius:14px;background:linear-gradient(135deg,rgba(14,165,233,.16),rgba(168,85,247,.14));border:1px solid rgba(120,140,255,.25);margin-bottom:12px}',
-      '#mineradio-listener-panel .mr-avatar{width:52px;height:52px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;background:linear-gradient(135deg,#0ea5e9,#a855f7);box-shadow:0 0 14px rgba(14,165,233,.5);user-select:none}',
+      '#mineradio-listener-panel .mr-dot.on{background:#00f5d4;box-shadow:0 0 10px #00f5d4}',
+      // 汽水音乐式个人主页头部：顶部渐变封面 + 大头像叠放 + 昵称 + 徽章 + 统计
+      '#mineradio-listener-panel .mr-profile{position:relative;margin:0 0 14px;border-radius:16px;overflow:hidden;background:linear-gradient(112deg,rgba(72,74,76,.62),rgba(24,27,30,.70) 48%,rgba(8,12,14,.74));border:1px solid rgba(0,245,212,.22);box-shadow:0 14px 40px rgba(0,0,0,.35)}',
+      '#mineradio-listener-panel .mr-profile-banner{height:104px;background:linear-gradient(120deg,rgba(0,245,212,.55),rgba(9,132,255,.42) 52%,rgba(168,85,247,.38));position:relative}',
+      '#mineradio-listener-panel .mr-profile-banner::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 90% at 82% 8%,rgba(255,255,255,.22),transparent 46%)}',
+      '#mineradio-listener-panel .mr-profile-body{display:flex;align-items:flex-end;gap:14px;padding:0 16px 14px;position:relative;margin-top:-34px}',
+      '#mineradio-listener-panel .mr-avatar{width:68px;height:68px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:#fff;background:linear-gradient(135deg,#00f5d4,#0a84ff);border:3px solid rgba(10,13,18,.92);box-shadow:0 0 18px rgba(0,245,212,.45);user-select:none}',
       '#mineradio-listener-panel .mr-profile-main{flex:1;min-width:0}',
-      '#mineradio-listener-panel .mr-profile-name{font-size:17px;font-weight:800;color:#fff;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '#mineradio-listener-panel .mr-profile-stats{font-size:12px;color:#aab4d8;display:flex;gap:10px;flex-wrap:wrap}',
-      '#mineradio-listener-panel .mr-profile-stats b{color:#e8ecff;font-weight:700}',
-      '#mineradio-listener-panel .mr-profile-badge{flex:none;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;white-space:nowrap}',
+      '#mineradio-listener-panel .mr-profile-name{font-size:18px;font-weight:800;color:#fff;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 8px rgba(0,0,0,.4)}',
+      '#mineradio-listener-panel .mr-profile-stats{font-size:12.5px;color:#aab4d8;display:flex;gap:14px;flex-wrap:wrap}',
+      '#mineradio-listener-panel .mr-profile-stats b{color:#fff;font-weight:700}',
+      '#mineradio-listener-panel .mr-profile-badge{flex:none;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;background:linear-gradient(135deg,#00f5d4,#0a84ff);color:#03120f;white-space:nowrap;box-shadow:0 0 12px rgba(0,245,212,.35)}',
+      '#mineradio-listener-panel .mr-profile-badge.off{background:rgba(255,255,255,.12);color:#9aa3c7;border:1px solid rgba(255,255,255,.18);box-shadow:none}',
       '#mineradio-listener-panel .mr-profile-badge.off{background:rgba(255,255,255,.1);color:#9aa3c7;border:1px solid rgba(255,255,255,.15)}',
       '#mineradio-listener-panel .mr-field{margin-bottom:10px}',
       '#mineradio-listener-panel .mr-field label{display:block;font-size:12px;color:#9aa3c7;margin-bottom:4px}',
-      '#mineradio-listener-panel input[type=text],#mineradio-listener-panel input[type=password],#mineradio-listener-panel textarea{width:100%;box-sizing:border-box;background:rgba(255,255,255,.07);border:1px solid rgba(120,140,255,.3);border-radius:8px;color:#fff;padding:8px 10px;font-size:14px;outline:none;font-family:inherit}',
+      '#mineradio-listener-panel input[type=text],#mineradio-listener-panel input[type=password],#mineradio-listener-panel textarea{width:100%;box-sizing:border-box;background:rgba(255,255,255,.07);border:1px solid rgba(0,245,212,.22);border-radius:8px;color:#fff;padding:8px 10px;font-size:14px;outline:none;font-family:inherit}',
+      '#mineradio-listener-panel input:focus,#mineradio-listener-panel textarea:focus{border-color:rgba(0,245,212,.55);box-shadow:0 0 0 2px rgba(0,245,212,.12)}',
       '#mineradio-listener-panel textarea{height:64px;resize:vertical;font-family:monospace;font-size:12px}',
-      '#mineradio-listener-panel .mr-btn{display:inline-block;background:linear-gradient(135deg,#0ea5e9,#22d3ee);border:none;color:#fff;border-radius:8px;padding:8px 16px;font-size:14px;cursor:pointer;margin:4px 6px 4px 0}',
+      '#mineradio-listener-panel .mr-btn{display:inline-block;background:linear-gradient(135deg,#00f5d4,#0a84ff);border:none;color:#03120f;border-radius:8px;padding:8px 16px;font-size:14px;font-weight:700;cursor:pointer;margin:4px 6px 4px 0;box-shadow:0 4px 14px rgba(0,245,212,.22)}',
       '#mineradio-listener-panel .mr-btn:hover{filter:brightness(1.1)}',
-      '#mineradio-listener-panel .mr-btn.ghost{background:rgba(255,255,255,.09);border:1px solid rgba(120,140,255,.25)}',
+      '#mineradio-listener-panel .mr-btn.ghost{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.18);color:#dde5f5;box-shadow:none;font-weight:500}',
       '#mineradio-listener-panel .mr-btn.small{padding:4px 10px;font-size:12px;border-radius:6px}',
       '#mineradio-listener-panel .mr-close{position:absolute;right:14px;top:12px;background:none;border:none;color:#9aa3c7;font-size:20px;cursor:pointer}',
-      '#mineradio-listener-panel .mr-sec{font-size:13px;font-weight:700;color:#cdd6ff;margin:16px 0 8px}',
-      '#mineradio-listener-panel .mr-track-list{max-height:190px;overflow:auto;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:4px 8px;margin-top:6px}',
+      '#mineradio-listener-panel .mr-sec{font-size:13px;font-weight:700;color:#00f5d4;margin:16px 0 8px;letter-spacing:.4px}',
+      '#mineradio-listener-panel .mr-track-list{max-height:190px;overflow:auto;border:1px solid rgba(0,245,212,.14);border-radius:10px;padding:4px 8px;margin-top:6px;background:rgba(0,0,0,.14)}',
       '#mineradio-listener-panel .mr-track-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px}',
       '#mineradio-listener-panel .mr-track-row .mr-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}',
       '#mineradio-listener-panel .mr-hr{border:none;border-top:1px solid rgba(255,255,255,.1);margin:14px 0}',
       '#mineradio-listener-panel .mr-picker{display:flex;gap:6px;align-items:center;margin-top:6px}',
-      '#mineradio-listener-panel .mr-picker select{flex:1;background:rgba(255,255,255,.07);border:1px solid rgba(120,140,255,.3);border-radius:6px;color:#fff;padding:6px 8px;font-size:12px;outline:none}',
+      '#mineradio-listener-panel .mr-picker select{flex:1;background:rgba(255,255,255,.07);border:1px solid rgba(0,245,212,.22);border-radius:6px;color:#fff;padding:6px 8px;font-size:12px;outline:none}',
       '#mineradio-listener-overlay{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:99998}',
     ].join('');
     document.head.appendChild(style);
@@ -203,9 +210,11 @@
 
   function buildLoggedInView(container) {
     container.innerHTML = '';
-    // 个人主页头部（像汽水音乐）：头像 / 昵称 / 统计 / 会员徽章
+    // 个人主页头部（汽水音乐式）：顶部渐变封面 + 大头像叠放 + 昵称 + 统计 + 会员徽章
     const isMember = Number(accountState.memberUntil) > Date.now();
     const profile = el('div', 'mr-profile');
+    profile.appendChild(el('div', 'mr-profile-banner'));
+    const body = el('div', 'mr-profile-body');
     const avatar = el('div', 'mr-avatar');
     avatar.textContent = String(accountState.account.name || 'M').slice(0, 1).toUpperCase();
     const main = el('div', 'mr-profile-main');
@@ -215,9 +224,10 @@
     const statFav = el('span'); statFav.innerHTML = '<b>' + (accountState.account.favorites || []).length + '</b> 收藏';
     stats.appendChild(statPl); stats.appendChild(statFav);
     main.appendChild(stats);
-    profile.appendChild(avatar);
-    profile.appendChild(main);
-    profile.appendChild(el('div', 'mr-profile-badge' + (isMember ? '' : ' off'), isMember ? 'MR 会员' : '未开通会员'));
+    body.appendChild(avatar);
+    body.appendChild(main);
+    body.appendChild(el('div', 'mr-profile-badge' + (isMember ? '' : ' off'), isMember ? 'MR 会员' : '未开通会员'));
+    profile.appendChild(body);
     container.appendChild(profile);
 
     const statusRow = el('div', 'mr-status');

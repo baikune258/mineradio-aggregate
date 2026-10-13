@@ -5195,7 +5195,7 @@ body.home-controls-locked #bottom-bar {
 #progress-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, rgba(255, 255, 255, .92), rgba(var(--fc-accent-rgb), .74));
+  background: linear-gradient(90deg, rgba(var(--fc-accent-rgb), .96), rgba(var(--fc-accent-rgb), .72));
   border-radius: 999px;
   transition: width .12s linear;
   box-shadow: 0 0 16px rgba(var(--fc-accent-rgb), .18)
@@ -18611,4 +18611,50 @@ body.desktop-shell.desktop-wallpaper-mode.diy-mode #bottom-bar.stage-mode {
   body.desktop-shell.desktop-wallpaper-mode.diy-mode #bottom-bar.stage-mode {
     width: calc(100vw - var(--desktop-safe-left) - var(--desktop-safe-right) - 24px);
   }
+}
+
+/* ================= Folia 玻璃播放界面（可切换皮肤，设置里切换） ================= */
+body.folia-skin #custom-bg,
+body.folia-skin #custom-bg > *,
+body.folia-skin #album-bg,
+body.folia-skin #album-bg-next {
+  filter: blur(10px) saturate(1.35) brightness(1.08) !important;
+  transform: scale(1.012) !important;
+}
+body.folia-skin #bottom-bar {
+  background: linear-gradient(112deg, rgba(255, 255, 255, .20), rgba(255, 255, 255, .09) 55%, rgba(255, 255, 255, .16));
+  border: 1px solid rgba(255, 255, 255, .34);
+  backdrop-filter: blur(26px) saturate(1.6);
+  -webkit-backdrop-filter: blur(26px) saturate(1.6);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, .34), 0 0 44px rgba(0, 245, 212, .07), inset 0 1px 0 rgba(255, 255, 255, .38);
+  border-radius: 44px;
+}
+body.folia-skin #bottom-bar::before,
+body.folia-skin #bottom-bar::after {
+  opacity: 0 !important;
+}
+body.folia-skin #thumb-wrap {
+  background: rgba(255, 255, 255, .12);
+  border: 1px solid rgba(255, 255, 255, .30);
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  border-radius: 20px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .28), inset 0 1px 0 rgba(255, 255, 255, .30);
+  padding: 10px 14px 10px 10px;
+}
+body.folia-skin #thumb-cover {
+  border-radius: 14px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .32);
+}
+body.folia-skin #stage-lyrics {
+  filter: drop-shadow(0 0 18px rgba(0, 245, 212, .16));
+}
+body.folia-skin .mini-queue-panel,
+body.folia-skin .playlist-panel-shell {
+  background: rgba(255, 255, 255, .10);
+  border: 1px solid rgba(255, 255, 255, .26);
+  backdrop-filter: blur(24px) saturate(1.55);
+  -webkit-backdrop-filter: blur(24px) saturate(1.55);
+  border-radius: 22px;
+  box-shadow: 0 20px 56px rgba(0, 0, 0, .30), inset 0 1px 0 rgba(255, 255, 255, .28);
 }

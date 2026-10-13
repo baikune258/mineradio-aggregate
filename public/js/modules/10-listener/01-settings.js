@@ -27,25 +27,29 @@
   function panelStyles() {
     const style = document.createElement('style');
     style.textContent = [
-      '#mineradio-settings-panel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:440px;max-width:92vw;max-height:84vh;overflow:auto;background:rgba(16,18,26,.98);border:1px solid rgba(120,140,255,.35);border-radius:16px;padding:22px 24px;color:#e8ecff;font-family:inherit;font-size:14px;z-index:99999;box-shadow:0 18px 60px rgba(0,0,0,.65)}',
+      '#mineradio-settings-panel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:460px;max-width:92vw;max-height:84vh;overflow:auto;background:linear-gradient(112deg,rgba(72,74,76,.72),rgba(24,27,30,.80) 48%,rgba(8,12,14,.84));backdrop-filter:blur(18px) saturate(1.5);-webkit-backdrop-filter:blur(18px) saturate(1.5);border:1px solid rgba(0,245,212,.28);border-radius:18px;padding:22px 24px;color:#e8ecf3;font-family:inherit;font-size:14px;z-index:99999;box-shadow:0 22px 64px rgba(0,0,0,.60),0 0 34px rgba(0,245,212,.06),inset 0 1px 0 rgba(255,255,255,.14)}',
       '#mineradio-settings-panel h3{margin:0 0 4px;font-size:18px;font-weight:700;color:#fff}',
       '#mineradio-settings-panel .mr-sub{color:#9aa3c7;font-size:12px;margin-bottom:16px}',
-      '#mineradio-settings-panel .mr-sec{font-size:13px;font-weight:700;color:#cdd6ff;margin:16px 0 8px}',
+      '#mineradio-settings-panel .mr-sec{font-size:13px;font-weight:700;color:#00f5d4;margin:16px 0 8px;letter-spacing:.4px}',
       '#mineradio-settings-panel .mr-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px}',
       '#mineradio-settings-panel .mr-row-inline{display:flex;align-items:center;gap:6px}',
       '#mineradio-settings-panel .mr-seg{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}',
-      '#mineradio-settings-panel .mr-seg-btn{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);color:#ddd;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit}',
-      '#mineradio-settings-panel .mr-seg-btn.active{background:linear-gradient(135deg,#2563eb,#38bdf8);border-color:transparent;color:#fff}',
+      '#mineradio-settings-panel .mr-seg-btn{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);color:#dde5f5;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit}',
+      '#mineradio-settings-panel .mr-seg-btn.active{background:linear-gradient(135deg,#00f5d4,#0a84ff);border-color:transparent;color:#03120f;font-weight:700}',
       '#mineradio-settings-panel .mr-row .mr-label{flex:1}',
-      '#mineradio-settings-panel .mr-btn{display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;color:#fff;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;margin:4px 6px 4px 0}',
+      '#mineradio-settings-panel .mr-btn{display:inline-block;background:linear-gradient(135deg,#00f5d4,#0a84ff);border:none;color:#03120f;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;margin:4px 6px 4px 0;box-shadow:0 4px 14px rgba(0,245,212,.22)}',
       '#mineradio-settings-panel .mr-btn:hover{filter:brightness(1.1)}',
-      '#mineradio-settings-panel .mr-btn.ghost{background:rgba(255,255,255,.09);border:1px solid rgba(120,140,255,.25)}',
+      '#mineradio-settings-panel .mr-btn.ghost{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.18);color:#dde5f5;box-shadow:none;font-weight:500}',
       '#mineradio-settings-panel .mr-btn.small{padding:4px 10px;font-size:12px;border-radius:6px}',
       '#mineradio-settings-panel .mr-close{position:absolute;right:14px;top:12px;background:none;border:none;color:#9aa3c7;font-size:20px;cursor:pointer}',
       '#mineradio-settings-panel .mr-dim{color:#9aa3c7;font-size:12px;line-height:1.6}',
-      '#mineradio-settings-panel .mr-switch{border:1px solid rgba(120,140,255,.35);background:rgba(255,255,255,.07);color:#cdd6ff;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;flex-shrink:0}',
-      '#mineradio-settings-panel .mr-switch.on{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-color:transparent}',
-      '#mineradio-settings-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99998}',
+      '#mineradio-settings-panel .mr-switch{border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.07);color:#dde5f5;border-radius:6px;padding:3px 10px;font-size:12px;cursor:pointer;flex-shrink:0}',
+      '#mineradio-settings-panel .mr-switch.on{background:linear-gradient(135deg,#00f5d4,#0a84ff);color:#03120f;border-color:transparent;font-weight:700}',
+      '#mineradio-settings-panel .fx-slider{display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px}',
+      '#mineradio-settings-panel .fx-slider label{flex:1;color:#dde5f5}',
+      '#mineradio-settings-panel .fx-slider input[type=range]{flex:1;min-width:120px;accent-color:#00f5d4}',
+      '#mineradio-settings-panel .fx-slider output{min-width:46px;text-align:right;color:#00f5d4;font-size:12px;font-weight:700}',
+      '#mineradio-settings-overlay{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:99998}',
     ].join('');
     document.head.appendChild(style);
   }
@@ -93,6 +97,39 @@
       } else toast('播放模式控制不可用');
     };
     container.appendChild(row('播放模式（点击切换）', modeBtn));
+
+    // 播放界面样式（经典 / Folia 玻璃）
+    container.appendChild(row('播放界面样式', (function () {
+      const seg = el('div', 'mr-seg');
+      const styles = [['classic', '经典'], ['folia', 'Folia 玻璃']];
+      const key = 'mineradio-folia-skin-v1';
+      function currentSkin() {
+        try { return document.body.classList.contains('folia-skin') ? 'folia' : 'classic'; } catch (_) { return 'classic'; }
+      }
+      function refreshSkinSeg() {
+        Array.prototype.forEach.call(seg.querySelectorAll('button'), function (b) {
+          b.classList.toggle('active', b.dataset.skin === currentSkin());
+        });
+      }
+      styles.forEach(function (item) {
+        const b = el('button', 'mr-seg-btn' + (item[0] === currentSkin() ? ' active' : ''), item[1]);
+        b.dataset.skin = item[0];
+        b.onclick = function () {
+          const apply = item[0] === 'folia';
+          try {
+            document.body.classList.toggle('folia-skin', apply);
+            localStorage.setItem(key, apply ? '1' : '0');
+          } catch (_) {}
+          toast('播放界面样式已切换：' + item[1]);
+          refreshSkinSeg();
+        };
+        seg.appendChild(b);
+      });
+      try {
+        if (localStorage.getItem(key) === '1') document.body.classList.add('folia-skin');
+      } catch (_) {}
+      return seg;
+    })()));
 
     // 歌词显示
     const lyricBtn = el('button', 'mr-btn small ghost', '切换');
