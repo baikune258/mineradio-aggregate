@@ -129,7 +129,7 @@
       '#mineradio-listener-panel .mr-profile-banner{height:104px;background:linear-gradient(120deg,rgba(0,245,212,.55),rgba(9,132,255,.42) 52%,rgba(168,85,247,.38));position:relative}',
       '#mineradio-listener-panel .mr-profile-banner::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 90% at 82% 8%,rgba(255,255,255,.22),transparent 46%)}',
       '#mineradio-listener-panel .mr-profile-body{display:flex;align-items:flex-end;gap:14px;padding:0 16px 14px;position:relative;margin-top:-34px}',
-      '#mineradio-listener-panel .mr-avatar{width:68px;height:68px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:#fff;background:linear-gradient(135deg,#00f5d4,#0a84ff);border:3px solid rgba(10,13,18,.92);box-shadow:0 0 18px rgba(0,245,212,.45);user-select:none}',
+      '#mineradio-listener-panel .mr-avatar{width:68px;height:68px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:#fff;background:linear-gradient(135deg,#00f5d4,#0a84ff);border:3px solid rgba(255,255,255,.95);box-shadow:0 0 18px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.25);user-select:none}',
       '#mineradio-listener-panel .mr-profile-main{flex:1;min-width:0}',
       '#mineradio-listener-panel .mr-profile-name{font-size:18px;font-weight:800;color:#fff;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 8px rgba(0,0,0,.4)}',
       '#mineradio-listener-panel .mr-profile-stats{font-size:12.5px;color:#aab4d8;display:flex;gap:14px;flex-wrap:wrap}',
@@ -222,7 +222,9 @@
     const stats = el('div', 'mr-profile-stats');
     const statPl = el('span'); statPl.innerHTML = '<b>' + (accountState.account.playlists || []).length + '</b> 歌单';
     const statFav = el('span'); statFav.innerHTML = '<b>' + (accountState.account.favorites || []).length + '</b> 收藏';
-    stats.appendChild(statPl); stats.appendChild(statFav);
+    const statFol = el('span'); statFol.innerHTML = '<b>0</b> 关注';
+    const statFan = el('span'); statFan.innerHTML = '<b>0</b> 粉丝';
+    stats.appendChild(statPl); stats.appendChild(statFav); stats.appendChild(statFol); stats.appendChild(statFan);
     main.appendChild(stats);
     body.appendChild(avatar);
     body.appendChild(main);

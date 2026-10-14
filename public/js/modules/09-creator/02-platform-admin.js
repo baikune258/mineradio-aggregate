@@ -52,8 +52,7 @@
   function closePanel() {
     if (overlayEl) { overlayEl.remove(); overlayEl = null; }
     if (panelEl) { panelEl.remove(); panelEl = null; }
-    unlocked = false;
-    adminPassword = '';
+    // 二改：口令本会话内保持，关闭面板后重新打开无需再输（点「重新锁定」才会清除）
   }
 
   function openAdmin() {
@@ -70,7 +69,14 @@
     panelEl.appendChild(closeBtn);
     panelEl.appendChild(el('h3', '', '创作者平台管理'));
     panelEl.appendChild(el('div', 'ma-dim', '审核作品、查看创作者、按月结算分成（平台抽 30% / 创作者 70%）'));
-    buildLockBlock();
+    if (unlocked && adminPassword) {
+      // 二改：本会话已解锁过，直接进入管理界面，不再要求口令
+      api().creatorAdminOverview(adminPassword)
+        .then(function (d) { if (d && d.ok) renderOverview(d); else { unlocked = false; adminPassword = ''; buildLockBlock(); } })
+        .catch(function () { unlocked = false; adminPassword = ''; buildLockBlock(); });
+    } else {
+      buildLockBlock();
+    }
     document.body.appendChild(panelEl);
   }
 

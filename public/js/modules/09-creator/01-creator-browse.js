@@ -183,9 +183,10 @@
     for (var i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = (h * 16777619) >>> 0; }
     return { key: key, hash: h };
   }
-  function pickDailyKeywords(hash) {
+  function pickDailyKeywords(hash, turn) {
     var pool = HOT_KEYWORD_POOL;
-    var start = hash % pool.length;
+    // 每次追加偏移 2 个词，轮换整池关键词，保证全天都能抓到新歌
+    var start = (hash + (turn || 0) * 2) % pool.length;
     var picks = [];
     for (var i = 0; i < 4; i++) {
       var idx = (start + i * 3) % pool.length;
@@ -233,9 +234,11 @@
 
   // 无限续播：队列末尾自动追加一批新的每日推荐免费歌（去重：当日已播 + 队列已有）
   var appendBusy = false;
+  var appendTimes = 0;
   function appendDailyHotSongs() {
     if (appendBusy) return Promise.resolve(0);
     appendBusy = true;
+    appendTimes = (typeof appendTimes === 'number') ? appendTimes + 1 : 1;
     var existing = {};
     (function () {
       try {
@@ -243,7 +246,7 @@
         q.forEach(function (s) { if (s && s.id) existing[String(s.id)] = true; });
       } catch (_) {}
     })();
-    return fetchDailyHotFreeSongs(existing, 12).then(function (fresh) {
+    return fetchDailyHotFreeSongs(existing, 12, false, appendTimes).then(function (fresh) {
       if (!fresh || !fresh.length) return 0;
       var newSongs = fresh.map(function (s) {
         return {
@@ -268,9 +271,10 @@
   }
 
   // 公共：按日期轮换关键词搜索免费歌（排除指定 id 集合），返回打乱后的新歌列表
-  function fetchDailyHotFreeSongs(excludeIds, limit, _retry) {
+  function fetchDailyHotFreeSongs(excludeIds, limit, _retry, appendTurn) {
     var seed = dailySeed();
-    var keywords = pickDailyKeywords(seed.hash);
+    // 二改：每次追加轮换一组关键词（按追加次数偏移），避免听几批后抓不到新歌
+    var keywords = pickDailyKeywords(seed.hash, appendTurn || 0);
     var played = dailyPlayedIds();
     var exclude = {};
     if (Array.isArray(excludeIds)) {

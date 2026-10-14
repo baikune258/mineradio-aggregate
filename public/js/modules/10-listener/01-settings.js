@@ -36,6 +36,12 @@
       '#mineradio-settings-panel .mr-seg{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}',
       '#mineradio-settings-panel .mr-seg-btn{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);color:#dde5f5;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit}',
       '#mineradio-settings-panel .mr-seg-btn.active{background:linear-gradient(135deg,#00f5d4,#0a84ff);border-color:transparent;color:#03120f;font-weight:700}',
+      // 四角全弧形滑动轨道（经典 / Folia 玻璃）
+      '#mineradio-settings-panel .mr-skin-slider{position:relative;width:150px;height:30px;flex-shrink:0;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);box-shadow:inset 0 1px 2px rgba(0,0,0,.35),inset 0 -1px 1px rgba(255,255,255,.05);cursor:pointer;user-select:none}',
+      '#mineradio-settings-panel .mr-skin-slider-rail{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 8px;pointer-events:none}',
+      '#mineradio-settings-panel .mr-skin-slider-label{color:#9aa3c7;font-size:11px;line-height:1;transition:color .18s;pointer-events:auto;cursor:pointer;padding:4px 2px;z-index:2}',
+      '#mineradio-settings-panel .mr-skin-slider-label.active{color:#fff;font-weight:700;text-shadow:0 0 6px rgba(0,245,212,.35)}',
+      '#mineradio-settings-panel .mr-skin-slider-thumb{position:absolute;top:2px;left:2px;width:44px;height:24px;border-radius:999px;background:linear-gradient(135deg,#00f5d4,#0a84ff);color:#03120f;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.40),0 0 10px rgba(0,245,212,.30);transition:left .22s cubic-bezier(.34,1.4,.46,1);pointer-events:none;letter-spacing:.3px}',
       '#mineradio-settings-panel .mr-row .mr-label{flex:1}',
       '#mineradio-settings-panel .mr-btn{display:inline-block;background:linear-gradient(135deg,#00f5d4,#0a84ff);border:none;color:#03120f;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;margin:4px 6px 4px 0;box-shadow:0 4px 14px rgba(0,245,212,.22)}',
       '#mineradio-settings-panel .mr-btn:hover{filter:brightness(1.1)}',
@@ -98,37 +104,43 @@
     };
     container.appendChild(row('播放模式（点击切换）', modeBtn));
 
-    // 播放界面样式（经典 / Folia 玻璃）
+    // 播放界面样式（经典 / Folia 玻璃）——二改：四角全弧形滑动轨道，嵌在行内
     container.appendChild(row('播放界面样式', (function () {
-      const seg = el('div', 'mr-seg');
-      const styles = [['classic', '经典'], ['folia', 'Folia 玻璃']];
       const key = 'mineradio-folia-skin-v1';
+      const track = el('div', 'mr-skin-slider');
+      const rail = el('div', 'mr-skin-slider-rail');
+      const thumb = el('div', 'mr-skin-slider-thumb');
+      const labels = [['classic', '经典'], ['folia', 'Folia 玻璃']].map(function (item) {
+        const lab = el('span', 'mr-skin-slider-label' + (item[0] === 'classic' ? ' active' : ''), item[1]);
+        lab.dataset.skin = item[0];
+        lab.onclick = function () { setSkin(item[0]); };
+        return lab;
+      });
+      rail.appendChild(labels[0]); rail.appendChild(labels[1]);
+      track.appendChild(rail); track.appendChild(thumb);
       function currentSkin() {
         try { return document.body.classList.contains('folia-skin') ? 'folia' : 'classic'; } catch (_) { return 'classic'; }
       }
-      function refreshSkinSeg() {
-        Array.prototype.forEach.call(seg.querySelectorAll('button'), function (b) {
-          b.classList.toggle('active', b.dataset.skin === currentSkin());
-        });
+      function refreshSlider() {
+        const skin = currentSkin();
+        labels.forEach(function (lab) { lab.classList.toggle('active', lab.dataset.skin === skin); });
+        thumb.style.left = skin === 'folia' ? 'calc(100% - 44px)' : '2px';
+        thumb.textContent = skin === 'folia' ? 'Folia' : '经典';
       }
-      styles.forEach(function (item) {
-        const b = el('button', 'mr-seg-btn' + (item[0] === currentSkin() ? ' active' : ''), item[1]);
-        b.dataset.skin = item[0];
-        b.onclick = function () {
-          const apply = item[0] === 'folia';
-          try {
-            document.body.classList.toggle('folia-skin', apply);
-            localStorage.setItem(key, apply ? '1' : '0');
-          } catch (_) {}
-          toast('播放界面样式已切换：' + item[1]);
-          refreshSkinSeg();
-        };
-        seg.appendChild(b);
-      });
+      function setSkin(skin) {
+        const apply = skin === 'folia';
+        try {
+          document.body.classList.toggle('folia-skin', apply);
+          localStorage.setItem(key, apply ? '1' : '0');
+        } catch (_) {}
+        toast('播放界面样式已切换：' + (apply ? 'Folia 玻璃' : '经典'));
+        refreshSlider();
+      }
       try {
         if (localStorage.getItem(key) === '1') document.body.classList.add('folia-skin');
       } catch (_) {}
-      return seg;
+      refreshSlider();
+      return track;
     })()));
 
     // 歌词显示
@@ -222,6 +234,8 @@
           if (typeof setLyricMotionStyle === 'function') setLyricMotionStyle(item[0]);
           else fx.lyricMotionStyle = item[0];
           if (typeof saveLyricLayout === 'function') saveLyricLayout({ syncDisk: true, user: true, reason: 'settingsLyricMotion' });
+          // 无论走哪条分支都即时重建当前歌词，切换立即显示对应动画效果
+          if (typeof refreshCurrentLyricStyle === 'function') refreshCurrentLyricStyle();
           toast('歌词动画已切换：' + item[1]);
           refreshSeg();
         };

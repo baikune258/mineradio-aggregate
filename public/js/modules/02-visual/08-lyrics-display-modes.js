@@ -160,6 +160,15 @@ function lyricMotionProfile() {
     profile.enter = 0.40; profile.exit = 0.36; profile.slide = 0.30; profile.progressEase *= 1.24; profile.contextDrift = 0.035; profile.edgeBoost = 1.18; profile.sweep = 0.54; profile.shimmer = 0.28; profile.glitch = lyricGlitchIntensityValue(); profile.glitchSlice = lyricGlitchSliceValue(); profile.glitchChroma = lyricGlitchChromaValue(); profile.glitchRate = lyricGlitchRateValue(); profile.glitchJitter = lyricGlitchJitterValue(); profile.glitchCameraBind = !!(fx && fx.lyricGlitchCameraBind); profile.glowLift = 1.08 + profile.glitch * 0.10; profile.floatAmp = 0.70;
   } else if (style === 'quick') {
     profile.enter = 0.36; profile.exit = 0.32; profile.slide = 0.22; profile.progressEase *= 1.34; profile.contextDrift = 0.034; profile.edgeBoost = 0.70; profile.sweep = 0.28; profile.shimmer = 0.10; profile.glowLift = 0.86; profile.floatAmp = 0.62;
+  } else if (style === '3d') {
+    // 3D 视角：纵向纵深层次 + 更强的透视边缘
+    profile.enter = 0.68; profile.exit = 0.58; profile.slide = 0.50; profile.progressEase *= 0.80; profile.contextDrift = 0.150; profile.edgeBoost = 1.70; profile.sweep = 0.44; profile.shimmer = 0.18; profile.glowLift = 1.28; profile.floatAmp = 1.18;
+  } else if (style === 'orbit') {
+    // 环绕轨道：行横向滑移明显、进出轻快，像绕圆轨道转
+    profile.enter = 0.44; profile.exit = 0.38; profile.slide = 0.88; profile.progressEase *= 1.10; profile.contextDrift = 0.220; profile.edgeBoost = 1.06; profile.sweep = 0.60; profile.shimmer = 0.20; profile.glowLift = 1.10; profile.floatAmp = 0.92;
+  } else if (style === 'bounce') {
+    // 弹跳：进入拉长、离开干脆、上下浮动幅度大
+    profile.enter = 1.10; profile.exit = 0.40; profile.slide = 0.48; profile.progressEase *= 1.30; profile.contextDrift = 0.110; profile.edgeBoost = 0.98; profile.sweep = 0.34; profile.shimmer = 0.16; profile.glowLift = 1.22; profile.floatAmp = 2.20;
   } else {
     profile.enter = 0.62; profile.exit = 0.52; profile.slide = 0.38; profile.progressEase *= 0.90; profile.contextDrift = 0.066; profile.edgeBoost = 1.18; profile.sweep = 0.72; profile.shimmer = 0.22; profile.glowLift = 1.0; profile.floatAmp = 1.0;
   }

@@ -4815,12 +4815,22 @@ ipcMain.handle('mineradio-clear-cache', async (event) => {
   try {
     const root = cacheSettings && cacheSettings.rootPath || defaultCacheRootPath();
     if (root && root !== STABLE_USER_DATA_PATH && root !== '/') {
-      const entries = fs.readdirSync(root);
+      let entries = [];
+      try { entries = fs.readdirSync(root); } catch (_) {}
       entries.forEach(function (name) {
         const p = path.join(root, name);
         try { fs.rmSync(p, { recursive: true, force: true }); } catch (_) {}
       });
     }
+    // 二改：连 chromium 网络/图片缓存一起清（封面图、平台资源等）
+    try {
+      const targetSession = (mainWindow && mainWindow.webContents && mainWindow.webContents.session)
+        || require('electron').session.defaultSession;
+      if (targetSession && typeof targetSession.clearCache === 'function') await targetSession.clearCache();
+      if (targetSession && typeof targetSession.clearStorageData === 'function') {
+        await targetSession.clearStorageData({ storages: ['cachestorage', 'serviceworkers', 'shadercache'], quiesce: true });
+      }
+    } catch (_) {}
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error.message || 'CLEAR_CACHE_FAILED' };

@@ -54,7 +54,8 @@ function normalizePlaylistPanelTab(tab) {
   return tab === 'podcasts' ? 'podcasts' : (tab === 'playlists' ? 'playlists' : 'queue');
 }
 function readPlaylistPanelTabPreference() {
-  try { return normalizePlaylistPanelTab(localStorage.getItem(PLAYLIST_PANEL_TAB_STORE_KEY) || 'queue'); } catch (e) { return 'queue'; }
+  // 二改：默认显示「我的歌单」（playlists），用户手动切换过的以偏好为准
+  try { return normalizePlaylistPanelTab(localStorage.getItem(PLAYLIST_PANEL_TAB_STORE_KEY) || 'playlists'); } catch (e) { return 'playlists'; }
 }
 function savePlaylistPanelTabPreference(tab) {
   try { localStorage.setItem(PLAYLIST_PANEL_TAB_STORE_KEY, normalizePlaylistPanelTab(tab)); } catch (e) { }
